@@ -1,4 +1,4 @@
-param([switch]$Probe)
+﻿param([switch]$Probe)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Runtime.WindowsRuntime, PresentationFramework, PresentationCore, WindowsBase
 Add-Type -TypeDefinition @"
