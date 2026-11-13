@@ -80,6 +80,15 @@ for (const kind of ["Prayer", "Calendar"]) {
     section("Metadata", { Name: "Sariyer " + kind, Author: "Islam", Information: kind === "Prayer" ? "Pinned at the top center. Right-click for settings." : "Drag to move. Right-click for settings." }) +
     section("Variables", { Kind: kind, "@Include": "#@#" + kind + ".inc" });
   if (kind === "Prayer") {
+    // The native prayer skin now supplies data only. No legacy pill meters exist.
+    skin = skin.replace("Kind=Prayer\n", "Kind=Prayer\nHeadless=1\n");
+    skin +=
+      section("Logic", { Measure: "Script", ScriptFile: "#@#Widget.lua" }) +
+      section("DataCanvas", { Meter: "Image", W: 1, H: 1, SolidColor: "0,0,0,0" });
+    writeIni(path.join(folder, kind + ".ini"), skin);
+    continue;
+  }
+  if (kind === "Prayer") {
     skin += section("Animator", {
       Measure: "Plugin", Plugin: "ActionTimer", UpdateDivider: -1, IgnoreWarnings: 1,
       ActionList1: "Repeat Frame, 8, 180",

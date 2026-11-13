@@ -17,3 +17,9 @@ IslandHome.txt
 IslandGeometry.txt
 PanelRequest.txt
 PrayerTimes.txt
+SystemAccent.txt
+PrayerHome.txt
+
+# Local analysis, regression harnesses and share archives
+graphify-out/
+Sariyer-Dynamic-Island-share.zip

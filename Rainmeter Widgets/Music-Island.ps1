@@ -1,6 +1,56 @@
 param([switch]$Probe)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Runtime.WindowsRuntime, PresentationFramework, PresentationCore, WindowsBase
+Add-Type -TypeDefinition @"
+using System;using System.Runtime.InteropServices;
+public static class IslandWindowStyle {
+[DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+[DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd,System.Text.StringBuilder name,int count);
+public delegate bool WindowCallback(IntPtr hwnd,IntPtr data);
+[StructLayout(LayoutKind.Sequential)] public struct Rect {public int Left,Top,Right,Bottom;}
+[DllImport("user32.dll")] static extern bool EnumWindows(WindowCallback callback,IntPtr data);
+[DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
+[DllImport("user32.dll")] static extern bool IsIconic(IntPtr hwnd);
+[DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hwnd,out Rect rect);
+[DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd,out uint process);
+[DllImport("user32.dll")] static extern int GetSystemMetrics(int metric);
+[DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr hwnd,int attribute,out int value,int size);
+static string ClassName(IntPtr hwnd){var name=new System.Text.StringBuilder(256);GetClassName(hwnd,name,256);return name.ToString();}
+public static bool CountsAsApp(bool visible,bool minimized,bool cloaked,bool own,bool tool,bool shell,bool onScreen){return visible&&!minimized&&!cloaked&&!own&&!tool&&!shell&&onScreen;}
+static bool AppWindow(IntPtr hwnd){
+  uint process;GetWindowThreadProcessId(hwnd,out process);
+  string cls=ClassName(hwnd);
+  bool shell=cls=="Progman"||cls=="WorkerW"||cls=="Shell_TrayWnd"||cls=="Shell_SecondaryTrayWnd";
+  Rect r;bool rect=GetWindowRect(hwnd,out r);
+  bool onScreen=rect&&r.Right>0&&r.Bottom>0&&r.Left<GetSystemMetrics(0)&&r.Top<GetSystemMetrics(1)&&r.Right-r.Left>64&&r.Bottom-r.Top>64;
+  int cloaked;bool hidden=DwmGetWindowAttribute(hwnd,14,out cloaked,4)==0&&cloaked!=0;
+  return CountsAsApp(IsWindowVisible(hwnd),IsIconic(hwnd),hidden,process==(uint)System.Diagnostics.Process.GetCurrentProcess().Id,(Get(hwnd,-20).ToInt64()&0x80)!=0,shell,onScreen);
+}
+static int checkedAt;static bool cachedDesktop;static bool hasCachedDesktop;
+public static bool DesktopForeground(){
+  int now=Environment.TickCount;
+  if(hasCachedDesktop&&unchecked((uint)(now-checkedAt))<80)return cachedDesktop;
+  IntPtr foreground=GetForegroundWindow();string cls=ClassName(foreground);
+  bool desktop=cls=="Progman"||cls=="WorkerW";
+  if(!desktop){
+    bool visibleApp=false;
+    EnumWindows((hwnd,data)=>{if(AppWindow(hwnd)){visibleApp=true;return false;}return true;},IntPtr.Zero);
+    desktop=!visibleApp;
+  }
+  checkedAt=now;cachedDesktop=desktop;hasCachedDesktop=true;return desktop;
+}
+[DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")] public static extern IntPtr Get(IntPtr hwnd,int index);
+[DllImport("user32.dll",EntryPoint="SetWindowLongPtrW")] public static extern IntPtr Set(IntPtr hwnd,int index,IntPtr value);
+[DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int w,int h,uint flags);
+public static void Apply(IntPtr hwnd){long style=Get(hwnd,-20).ToInt64();style=(style|0x80L|0x08000000L)&~0x40000L;Set(hwnd,-20,new IntPtr(style));SetWindowPos(hwnd,IntPtr.Zero,0,0,0,0,0x37);}
+}
+"@
+function Set-UtilityWindow($view){
+  $view.Add_SourceInitialized({param($sender,$eventArgs)
+    $handle=([Windows.Interop.WindowInteropHelper]::new($sender)).Handle
+    [IslandWindowStyle]::Apply($handle)
+  })
+}
 $managerType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager,Windows.Media.Control,ContentType=WindowsRuntime]
 $propertiesType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties,Windows.Media.Control,ContentType=WindowsRuntime]
 $streamType = [Windows.Storage.Streams.IRandomAccessStreamWithContentType,Windows.Storage.Streams,ContentType=WindowsRuntime]
@@ -24,7 +74,7 @@ $mutex = New-Object Threading.Mutex($false, 'Local\SariyerMusicIsland')
 if (-not $mutex.WaitOne(0)) { return }
 $rainmeter = Join-Path $env:ProgramFiles 'Rainmeter\Rainmeter.exe'
 function PrayerVisible([bool]$visible) {
-    $command = if ($visible) {'!Show'} else {'!Hide'}
+    $command = '!Hide' # Legacy native display is permanently data-only.
     Start-Process -FilePath $rainmeter -ArgumentList @($command, '"SariyerWidgets\Prayer"') -WindowStyle Hidden
 }
 [xml]$xaml = @'
@@ -32,9 +82,9 @@ function PrayerVisible([bool]$visible) {
  <Grid><Border Name="Pill" Background="Black" CornerRadius="32" Width="407" Height="160" VerticalAlignment="Top" HorizontalAlignment="Center" ClipToBounds="True">
   <Grid>
 <Grid Name="PanelHeader" Margin="34,8,34,0" Height="30" VerticalAlignment="Top"><StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-<Button Name="PrayerTab" Width="34" Height="28" ToolTip="Prayer"><Viewbox Width="19" Height="19"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Data="M 12,1 C 4,2 1,11 5,18 C 9,25 19,26 25,18 C 17,22 8,15 12,1 Z"/></Viewbox></Button>
-<Button Name="PlayerTab" Width="34" Height="28" ToolTip="Player"><Viewbox Width="17" Height="19"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Data="M 1,1 Q 0,0 0,3 L 0,23 Q 0,26 3,24 L 22,14 Q 25,12.5 22,11 Z"/></Viewbox></Button></StackPanel>
-<ToggleButton Name="DefaultToggle" Width="34" Height="20" HorizontalAlignment="Right" ToolTip="Use this panel as home"><ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Grid><Border Name="Track" Background="#363638" CornerRadius="10"/><Ellipse Name="Thumb" Width="16" Height="16" Fill="White" HorizontalAlignment="Left" Margin="2"/></Grid><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="Track" Property="Background" Value="#54B66B"/><Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/></Trigger></ControlTemplate.Triggers></ControlTemplate></ToggleButton.Template></ToggleButton>
+<Button Name="PrayerTab" Width="34" Height="28" ToolTip="Prayer"><Viewbox Width="20" Height="20"><Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" Data="M 20.8,13 A 9,9 0 1 1 11,3.2 A 7,7 0 0 0 20.8,13 M 18,1 L 19.2,4.8 L 23,6 L 19.2,7.2 L 18,11 L 16.8,7.2 L 13,6 L 16.8,4.8 Z"/></Viewbox></Button>
+<Button Name="PlayerTab" Width="34" Height="28" ToolTip="Player"><Viewbox Width="20" Height="20"><Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M 2,10 L 2,14 M 6,6 L 6,18 M 10,3 L 10,21 M 14,8 L 14,16 M 18,5 L 18,19 M 22,10 L 22,14"/></Viewbox></Button></StackPanel>
+<ToggleButton Name="DefaultToggle" Width="34" Height="20" HorizontalAlignment="Right" ToolTip="Use this panel as home"><ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Grid><Border Name="Track" Background="#363638" CornerRadius="10"/><Ellipse Name="Thumb" Width="16" Height="16" Fill="White" HorizontalAlignment="Left" Margin="2"/></Grid><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="Track" Property="Background" Value="{DynamicResource SystemAccentBrush}"/><Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/></Trigger></ControlTemplate.Triggers></ControlTemplate></ToggleButton.Template></ToggleButton>
 <Button Name="ClosePanel" Visibility="Collapsed"/></Grid>
 <StackPanel Name="PrayerView" Margin="38,48,38,16" Visibility="Collapsed"><TextBlock Name="PrayerDate" Foreground="#999999" Margin="0,0,0,10"/><StackPanel Name="PrayerRows"/></StackPanel>
 <Grid Name="Content" Width="331" HorizontalAlignment="Center" Margin="20,44,20,14" Opacity="0">
@@ -60,6 +110,7 @@ function PrayerVisible([bool]$visible) {
 </Window>
 '@
 $window = [Windows.Markup.XamlReader]::Load((New-Object Xml.XmlNodeReader $xaml))
+Set-UtilityWindow $window
 foreach ($name in 'Pill','Content','Art','Song','Artist','Elapsed','Remaining','Progress','Previous','Pause','Next','PlayIcon') { Set-Variable -Name $name -Value $window.FindName($name) }
 foreach ($button in $Previous,$Pause,$Next) {
     $button.Width=72; $button.Height=44; $button.Foreground=[Windows.Media.Brushes]::White; $button.Background=[Windows.Media.Brushes]::Black; $button.BorderThickness=0; $button.Cursor=[Windows.Input.Cursors]::Hand
@@ -72,6 +123,16 @@ foreach($button in $Previous,$Pause,$Next){$button.Template=$template}
 $Pill.Width=407; $Pill.Height=160
 $Pill.CornerRadius=[Windows.CornerRadius]::new(0)
 $Pill.Clip=[Windows.Media.Geometry]::Parse('M 0,0 L 407,0 Q 389,0 389,18 L 389,132 Q 389,160 361,160 L 46,160 Q 18,160 18,132 L 18,18 Q 18,0 0,0 Z')
+# Update clip and content from the same animated bounds each frame.
+$Pill.Add_SizeChanged({
+  $w=$Pill.ActualWidth;$h=$Pill.ActualHeight
+  if($w -lt 92 -or $h -lt 20){return}
+  $Content.Width=$w-76
+  $radius=[math]::Min(28.0,$h/2)
+  $shoulder=[math]::Min(18.0,$h/2)
+  $shape=[string]::Format([Globalization.CultureInfo]::InvariantCulture,'M 0,0 L {0},0 Q {1},0 {1},{5} L {1},{2} Q {1},{3} {4},{3} L {6},{3} Q 18,{3} 18,{2} L 18,{5} Q 18,0 0,0 Z',$w,($w-18),($h-$radius),$h,($w-18-$radius),$shoulder,(18+$radius))
+  $Pill.Clip=[Windows.Media.Geometry]::Parse($shape)
+})
 $Content.Opacity=1
 $slide=New-Object Windows.Media.TranslateTransform
 $Pill.RenderTransform=$slide
@@ -81,45 +142,171 @@ if(Test-Path -LiteralPath $script:defaultPanelPath){$saved=[IO.File]::ReadAllTex
 $script:view='Player'
 $prayerView=$window.FindName('PrayerView');$prayerRows=$window.FindName('PrayerRows');$prayerDate=$window.FindName('PrayerDate')
 $prayerTab=$window.FindName('PrayerTab');$playerTab=$window.FindName('PlayerTab')
-[xml]$compactXaml='<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" WindowStyle="None" AllowsTransparency="True" Background="Transparent" ShowInTaskbar="False" ShowActivated="False" ResizeMode="NoResize" Width="296" Height="32"><Grid><Path Fill="Black" Data="M 0,0 L 296,0 Q 278,0 278,14 L 278,20 Q 278,32 266,32 L 30,32 Q 18,32 18,20 L 18,14 Q 18,0 0,0 Z"/><Grid Margin="27,5,27,5"><Image Name="CompactArt" Width="20" Height="20" HorizontalAlignment="Left" Stretch="UniformToFill"><Image.Clip><EllipseGeometry Center="10,10" RadiusX="10" RadiusY="10"/></Image.Clip></Image><StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Height="22"><Rectangle Name="SmallBar0" Fill="#8CB6C1" Width="2" Height="4" RadiusX="1" RadiusY="1" Margin="1,0" VerticalAlignment="Center"/><Rectangle Name="SmallBar1" Fill="#8CB6C1" Width="2" Height="4" RadiusX="1" RadiusY="1" Margin="1,0" VerticalAlignment="Center"/><Rectangle Name="SmallBar2" Fill="#8CB6C1" Width="2" Height="4" RadiusX="1" RadiusY="1" Margin="1,0" VerticalAlignment="Center"/><Rectangle Name="SmallBar3" Fill="#8CB6C1" Width="2" Height="4" RadiusX="1" RadiusY="1" Margin="1,0" VerticalAlignment="Center"/><Rectangle Name="SmallBar4" Fill="#8CB6C1" Width="2" Height="4" RadiusX="1" RadiusY="1" Margin="1,0" VerticalAlignment="Center"/></StackPanel></Grid></Grid></Window>'
-$compact=[Windows.Markup.XamlReader]::Load((New-Object Xml.XmlNodeReader $compactXaml))
-function Restore-Home {
-  if($script:defaultPanel -eq 'Player'){
-    PrayerVisible $false
-    $compact.Left=([Windows.SystemParameters]::PrimaryScreenWidth-296)/2;$compact.Top=0
-    $compact.FindName('CompactArt').Source=$Art.Source
-    $compact.Show()
-  }else{$compact.Hide();PrayerVisible $true}
+# Windows DWM stores AccentColor as ABGR. Keep the accent legible on black.
+function Update-SystemAccent {
+  if($script:nextAccentRead -and [datetime]::Now -lt $script:nextAccentRead){return}
+  $script:nextAccentRead=[datetime]::Now.AddSeconds(2)
+  $r=180;$g=180;$b=180
+  try{
+    $raw=[uint32](Get-ItemPropertyValue -LiteralPath 'HKCU:\Software\Microsoft\Windows\DWM' -Name AccentColor)
+    $r=[int]($raw -band 255);$g=[int](($raw -shr 8) -band 255);$b=[int](($raw -shr 16) -band 255)
+  }catch{}
+  # Preserve hue while lifting very dark system colors for this black surface.
+  $bright=[math]::Max($r,[math]::Max($g,$b))
+  if($bright -lt 155){$lift=155-$bright;$r+=$lift;$g+=$lift;$b+=$lift}
+  $key="$r,$g,$b"
+  if($script:accentKey -eq $key){return}
+  $script:accentKey=$key
+  $script:systemAccentBrush=[Windows.Media.SolidColorBrush]::new([Windows.Media.Color]::FromRgb($r,$g,$b));$script:systemAccentBrush.Freeze()
+  $window.Resources['SystemAccentBrush']=$script:systemAccentBrush
+  $prayerTab.Foreground=if($script:view -eq 'Prayer'){$script:systemAccentBrush}else{[Windows.Media.Brushes]::Gray}
+  $playerTab.Foreground=if($script:view -eq 'Player'){$script:systemAccentBrush}else{[Windows.Media.Brushes]::Gray}
+  $file=Join-Path $env:LOCALAPPDATA 'Sariyer Widgets\Rainmeter\Skins\SariyerWidgets\@Resources\SystemAccent.txt'
+  try{[IO.File]::WriteAllText($file,$key)}catch [System.IO.IOException]{$script:accentKey=$null}
+}
+Update-SystemAccent
+
+# All presentations are children of this single visible window and black surface.
+[xml]$homeXaml='<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Margin="28,5" Visibility="Collapsed"><Image Name="CompactArt" Width="20" Height="20" HorizontalAlignment="Left" Stretch="UniformToFill"><Image.Clip><EllipseGeometry Center="10,10" RadiusX="10" RadiusY="10"/></Image.Clip></Image><StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Height="22"><Rectangle Name="SmallBar0" Width="2" Height="4" RadiusX="1" RadiusY="1" Margin="1,0" Fill="Gray"/><Rectangle Name="SmallBar1" Width="2" Height="4" RadiusX="1" RadiusY="1" Margin="1,0" Fill="Gray"/><Rectangle Name="SmallBar2" Width="2" Height="4" RadiusX="1" RadiusY="1" Margin="1,0" Fill="Gray"/><Rectangle Name="SmallBar3" Width="2" Height="4" RadiusX="1" RadiusY="1" Margin="1,0" Fill="Gray"/><Rectangle Name="SmallBar4" Width="2" Height="4" RadiusX="1" RadiusY="1" Margin="1,0" Fill="Gray"/></StackPanel></Grid>'
+$compactHome=[Windows.Markup.XamlReader]::Load((New-Object Xml.XmlNodeReader $homeXaml))
+foreach($name in @('CompactArt','SmallBar0','SmallBar1','SmallBar2','SmallBar3','SmallBar4')){$window.RegisterName($name,$compactHome.FindName($name))}
+[void]$Pill.Child.Children.Add($compactHome)
+[xml]$prayerHomeXaml='<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Margin="34,8" Visibility="Collapsed"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="54"/><ColumnDefinition Width="*"/><ColumnDefinition Width="54"/></Grid.ColumnDefinitions><TextBlock Name="HomePrayerName" FontWeight="SemiBold" FontSize="13" Foreground="#BBBBBB" VerticalAlignment="Center" Margin="0,0,15,0"/><TextBlock Name="HomePrayerStart" Grid.Column="1" FontSize="13" Foreground="White" VerticalAlignment="Center"/><ProgressBar Name="HomePrayerProgress" Grid.Column="2" Minimum="0" Maximum="1" Height="4" Background="#303030" BorderThickness="0" Margin="6,0,15,0" VerticalAlignment="Center"><ProgressBar.Foreground><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#4DE54D" Offset="0"/><GradientStop Color="#E5E54D" Offset=".5"/><GradientStop Color="#E54D4D" Offset="1"/></LinearGradientBrush></ProgressBar.Foreground></ProgressBar><TextBlock Name="HomePrayerEnd" Grid.Column="3" FontSize="13" Foreground="White" VerticalAlignment="Center" TextAlignment="Right"/></Grid>'
+$prayerHome=[Windows.Markup.XamlReader]::Load((New-Object Xml.XmlNodeReader $prayerHomeXaml))
+[void]$Pill.Child.Children.Add($prayerHome)
+$compact=$window
+function Update-PrayerHome {
+  $file=Join-Path $env:LOCALAPPDATA 'Sariyer Widgets\Rainmeter\Skins\SariyerWidgets\@Resources\PrayerHome.txt'
+  if(Test-Path -LiteralPath $file){
+    try{$values=[IO.File]::ReadAllLines($file)}catch [System.IO.IOException]{return}
+    $progressValue=0.0
+    if($values.Count -ge 4 -and [double]::TryParse($values[3],[Globalization.NumberStyles]::Float,[Globalization.CultureInfo]::InvariantCulture,[ref]$progressValue)){
+      $prayerHome.FindName('HomePrayerName').Text=$values[0]
+      $prayerHome.FindName('HomePrayerStart').Text=$values[1]
+      $prayerHome.FindName('HomePrayerEnd').Text=$values[2]
+      $prayerHome.FindName('HomePrayerProgress').Value=$progressValue
+      $prayerHome.FindName('HomePrayerName').Foreground=$script:systemAccentBrush
+    }
+  }
+}
+function Resize-Island([double]$width,[double]$height) {
+  if($script:slideNotification){
+    $Pill.BeginAnimation([Windows.FrameworkElement]::WidthProperty,$null)
+    $Pill.BeginAnimation([Windows.FrameworkElement]::HeightProperty,$null)
+    $Pill.Width=$width;$Pill.Height=$height
+    $Pill.Child.BeginAnimation([Windows.UIElement]::OpacityProperty,$null);$Pill.Child.Opacity=1
+    $script:targetWidth=$width;$script:targetHeight=$height
+    return
+  }
+  if($window.IsVisible -and $script:targetWidth -eq $width -and $script:targetHeight -eq $height){return}
+  $script:targetWidth=$width;$script:targetHeight=$height
+  $inside=$Pill.Child
+  $inside.BeginAnimation([Windows.UIElement]::OpacityProperty,$null)
+  $inside.Opacity=0
+  $Content.BeginAnimation([Windows.UIElement]::OpacityProperty,$null);$Content.Opacity=1
+  $prayerView.BeginAnimation([Windows.UIElement]::OpacityProperty,$null);$prayerView.Opacity=1
+  if(-not $window.IsVisible){$Pill.Width=$width;$Pill.Height=$height;$inside.Opacity=1;return}
+  Animate $Pill ([Windows.FrameworkElement]::WidthProperty) $width .40
+  $resize=New-Object Windows.Media.Animation.DoubleAnimation
+  $resize.To=$height;$resize.Duration=[Windows.Duration]::new([timespan]::FromSeconds(.40))
+  $ease=New-Object Windows.Media.Animation.CubicEase;$ease.EasingMode='EaseInOut';$resize.EasingFunction=$ease
+  $resize.Add_Completed({
+    Animate $Pill.Child ([Windows.UIElement]::OpacityProperty) 1 .14
+    if(-not $script:expanded){$window.Topmost=([bool]$script:hoverPeek -or [bool]$script:hoverExiting)}
+  })
+  $Pill.BeginAnimation([Windows.FrameworkElement]::HeightProperty,$resize)
+}
+function Update-DesktopVisibility {
+  $desktop=[IslandWindowStyle]::DesktopForeground()
+  $show=$script:expanded -or $script:hoverPeek -or $script:hoverExiting -or $desktop
+  if($desktop -and $show -and -not $script:expanded -and $window.Opacity -eq 0){
+    # Prepare compact content before the hidden-to-desktop entrance.
+    $Pill.BeginAnimation([Windows.FrameworkElement]::WidthProperty,$null)
+    $Pill.BeginAnimation([Windows.FrameworkElement]::HeightProperty,$null)
+    $Pill.Width=if($script:defaultPanel -eq 'Player'){296.0}else{428.0}
+    $Pill.Height=if($script:defaultPanel -eq 'Player'){32.0}else{47.0}
+    $Pill.Child.BeginAnimation([Windows.UIElement]::OpacityProperty,$null);$Pill.Child.Opacity=1
+    $window.UpdateLayout()
+    $slide.BeginAnimation([Windows.Media.TranslateTransform]::YProperty,$null)
+    $slide.Y=-($Pill.Height+2)
+    Animate $slide ([Windows.Media.TranslateTransform]::YProperty) 0 .45
+  }
+  $window.Opacity=if($show){1}else{0}
+  $window.IsHitTestVisible=$show
+  if(-not $script:expanded){$window.Topmost=([bool]$script:hoverPeek -or [bool]$script:hoverExiting)}
+}
+function Get-CloseMotion([bool]$expanded,[bool]$openedOverApp,[bool]$desktop) {
+  if($expanded -and ($openedOverApp -or -not $desktop)){return 'Slide'}
+  return 'Resize'
+}
+function Restore-Home([double]$fromWidth=0) {
+  if((Get-CloseMotion ([bool]$script:expanded) ([bool]$script:openedOverApp) ([IslandWindowStyle]::DesktopForeground())) -eq 'Slide'){
+    if($script:closing){return}
+    $script:closing=$true
+    $exit=New-Object Windows.Media.Animation.DoubleAnimation
+    $exit.To=-($Pill.ActualHeight+2);$exit.Duration=[Windows.Duration]::new([timespan]::FromSeconds(.40))
+    $ease=New-Object Windows.Media.Animation.CubicEase;$ease.EasingMode='EaseInOut';$exit.EasingFunction=$ease
+    $exit.Add_Completed({
+      if($script:closing){
+        $window.Opacity=0;$script:expanded=$false;$script:closing=$false;$script:slideNotification=$false
+        Restore-Home
+      }
+    })
+    $slide.BeginAnimation([Windows.Media.TranslateTransform]::YProperty,$exit)
+    return
+  }
+  $script:slideNotification=$false;$script:openedOverApp=$false
+  $script:expanded=$false;$script:closing=$false;$script:notification=$false
+  $script:view=$script:defaultPanel
+  $window.FindName('PanelHeader').Visibility='Collapsed'
+  $Content.Visibility='Collapsed';$prayerView.Visibility='Collapsed'
+  $compactHome.Visibility=if($script:defaultPanel -eq 'Player'){'Visible'}else{'Collapsed'}
+  $prayerHome.Visibility=if($script:defaultPanel -eq 'Prayer'){'Visible'}else{'Collapsed'}
+  Update-PrayerHome
+  $width=if($script:defaultPanel -eq 'Player'){296.0}else{428.0}
+  $height=if($script:defaultPanel -eq 'Player'){32.0}else{47.0}
+  $window.Width=480;$window.Height=280;$window.Top=0
+  $window.Left=([Windows.SystemParameters]::PrimaryScreenWidth-480)/2
+  $slide.BeginAnimation([Windows.Media.TranslateTransform]::YProperty,$null);$slide.Y=0
+  if($window.Opacity -eq 0){
+    $Pill.BeginAnimation([Windows.FrameworkElement]::WidthProperty,$null)
+    $Pill.BeginAnimation([Windows.FrameworkElement]::HeightProperty,$null)
+    $Pill.Width=$width;$Pill.Height=$height
+    $script:targetWidth=$width;$script:targetHeight=$height
+    $Pill.Child.BeginAnimation([Windows.UIElement]::OpacityProperty,$null);$Pill.Child.Opacity=1
+  }else{Resize-Island $width $height}
+  Update-DesktopVisibility
+  if(-not $window.IsVisible){$window.Topmost=$false;$window.Show()}
+  PrayerVisible $false
 }
 function Select-Panel($view,[bool]$save){
+  if($script:closing -and $script:expanded){
+    $script:closing=$false
+    Animate $slide ([Windows.Media.TranslateTransform]::YProperty) 0 .30
+  }
   $script:view=$view
+  $compactHome.Visibility='Collapsed';$prayerHome.Visibility='Collapsed'
   if($save){$script:defaultPanel=$view;[IO.File]::WriteAllText($script:defaultPanelPath,$view)}
   foreach($tab in $prayerTab,$playerTab){$tab.Template=$template;$tab.Foreground=[Windows.Media.Brushes]::White;$tab.Cursor=[Windows.Input.Cursors]::Hand}
   $Content.Visibility=if($view -eq 'Player'){'Visible'}else{'Collapsed'}
   $prayerView.Visibility=if($view -eq 'Prayer'){'Visible'}else{'Collapsed'}
-  $prayerTab.Foreground=if($view -eq 'Prayer'){[Windows.Media.Brushes]::PaleGreen}else{[Windows.Media.Brushes]::Gray}
-  $playerTab.Foreground=if($view -eq 'Player'){[Windows.Media.Brushes]::PaleGreen}else{[Windows.Media.Brushes]::Gray}
+  $prayerTab.Foreground=if($view -eq 'Prayer'){$script:systemAccentBrush}else{[Windows.Media.Brushes]::Gray}
+  $playerTab.Foreground=if($view -eq 'Player'){$script:systemAccentBrush}else{[Windows.Media.Brushes]::Gray}
   $window.FindName('PanelHeader').Visibility=if($script:notification){'Collapsed'}else{'Visible'}
   $window.FindName('DefaultToggle').IsChecked=($script:defaultPanel -eq $view)
   $Content.Margin=if($script:notification){[Windows.Thickness]::new(20,14,20,14)}else{[Windows.Thickness]::new(20,44,20,14)}
-  $bodyWidth=260.0
-  if($script:defaultPanel -eq 'Prayer'){
-    $geometryFile=Join-Path $env:LOCALAPPDATA 'Sariyer Widgets\Rainmeter\Skins\SariyerWidgets\@Resources\IslandGeometry.txt'
-    if(Test-Path -LiteralPath $geometryFile){$values=[IO.File]::ReadAllLines($geometryFile);$bodyWidth=[double]::Parse($values[0],[Globalization.CultureInfo]::InvariantCulture)/[Windows.Media.VisualTreeHelper]::GetDpi($window).DpiScaleX}
-  }
-  if($script:notification){$bodyWidth=371.0}
+  # A stationary transparent canvas keeps the center fixed while the card resizes.
+  $bodyWidth=if($view -eq 'Prayer'){330.0}else{371.0}
   $outerWidth=$bodyWidth+36
-  $window.Width=$outerWidth;$Pill.Width=$outerWidth;$Content.Width=$bodyWidth-40
-  $window.Left=([Windows.SystemParameters]::PrimaryScreenWidth-$outerWidth)/2
   $height=if($script:notification){160}elseif($view -eq 'Prayer'){260}else{190}
-  $window.Height=$height;$Pill.Height=$height
-  $shape=[string]::Format([Globalization.CultureInfo]::InvariantCulture,'M 0,0 L {0},0 Q {1},0 {1},18 L {1},{2} Q {1},{3} {4},{3} L 46,{3} Q 18,{3} 18,{2} L 18,18 Q 18,0 0,0 Z',$outerWidth,($outerWidth-18),($height-28),$height,($outerWidth-46))
-  $Pill.Clip=[Windows.Media.Geometry]::Parse($shape)
+  $window.Width=480;$window.Height=280
+  $window.Left=([Windows.SystemParameters]::PrimaryScreenWidth-480)/2
+  Resize-Island $outerWidth $height
   if($view -eq 'Prayer'){
     $data=Join-Path $env:LOCALAPPDATA 'Sariyer Widgets\Rainmeter\Skins\SariyerWidgets\@Resources\PrayerTimes.txt'
     $prayerRows.Children.Clear()
     if(Test-Path -LiteralPath $data){
-      $lines=[IO.File]::ReadAllLines($data);$prayerDate.Text='Sarıyer · '+$lines[0]
+      try{$lines=[IO.File]::ReadAllLines($data)}catch [System.IO.IOException]{$lines=@()};if($lines.Count -eq 0){return};$prayerDate.Text='Sarıyer · '+$lines[0]
       foreach($line in ($lines | Select-Object -Skip 1)){
         $parts=$line.Split('|');if($parts.Count -ne 2){continue}
         $row=New-Object Windows.Controls.DockPanel;$row.Margin='0,0,0,9'
@@ -140,7 +327,7 @@ $window.FindName('DefaultToggle').Add_Click({
   $chosen=if($window.FindName('DefaultToggle').IsChecked){$script:view}elseif($script:view -eq 'Prayer'){'Player'}else{'Prayer'}
   $script:defaultPanel=$chosen;[IO.File]::WriteAllText($script:defaultPanelPath,$chosen)
 })
-$compact.Add_MouseLeftButtonUp({$script:notification=$false;Select-Panel 'Player' $false;Expand})
+$Pill.Add_MouseLeftButtonUp({if(-not $script:expanded){$script:notification=$false;$script:view=$script:defaultPanel;Expand}})
 Add-Type -TypeDefinition @"
 using System;using System.Runtime.InteropServices;
 public static class IslandPointer{
@@ -149,22 +336,81 @@ public static class IslandPointer{
 [DllImport("user32.dll")]public static extern bool GetCursorPos(out Point point);
 }
 "@
+function Request-OutsideFold {
+  if(-not $script:expanded -or $script:closing){return}
+  if(-not $script:notification){Restore-Home;return}
+  # One outside click schedules dismissal; further clicks cannot postpone it.
+  if(-not $script:forceClose){
+    $outsideDeadline=[datetime]::Now.AddSeconds(1.5)
+    if($outsideDeadline -lt $script:deadline){$script:deadline=$outsideDeadline}
+    $script:forceClose=$true
+  }
+}
+function Update-HoverIntent([double]$now,[bool]$zone,[bool]$over,[bool]$desktop) {
+  if($desktop -or $script:expanded){$script:hoverStart=$null;$script:hoverPeek=$false;$script:hoverLeave=$null;return}
+  if($script:hoverPeek){
+    if($zone -or $over){$script:hoverLeave=$null}
+    elseif($null -eq $script:hoverLeave){$script:hoverLeave=$now}
+    elseif($now-$script:hoverLeave -ge .6){$script:hoverPeek=$false;$script:hoverStart=$null}
+  }elseif($zone){
+    if($null -eq $script:hoverStart){$script:hoverStart=$now}
+    elseif($now-$script:hoverStart -ge 1.0){$script:hoverPeek=$true;$script:hoverLeave=$null}
+  }else{$script:hoverStart=$null}
+}
+$hoverClock=[Diagnostics.Stopwatch]::StartNew()
 $navigationTimer=New-Object Windows.Threading.DispatcherTimer;$navigationTimer.Interval=[timespan]::FromMilliseconds(100)
 $navigationTimer.Add_Tick({
+  $hoverPoint=New-Object IslandPointer+Point;[void][IslandPointer]::GetCursorPos([ref]$hoverPoint)
+  $position=$window.PointFromScreen([Windows.Point]::new($hoverPoint.X,$hoverPoint.Y))
+  $onPanel=$Pill.PointFromScreen([Windows.Point]::new($hoverPoint.X,$hoverPoint.Y))
+  $zone=($position.X -ge 160 -and $position.X -le 320 -and $position.Y -ge 0 -and $position.Y -le 10)
+  $over=($onPanel.X -ge 0 -and $onPanel.X -le $Pill.ActualWidth -and $onPanel.Y -ge 0 -and $onPanel.Y -le $Pill.ActualHeight)
+  $wasPeek=[bool]$script:hoverPeek
+  Update-HoverIntent $hoverClock.Elapsed.TotalSeconds $zone $over ([IslandWindowStyle]::DesktopForeground())
+  if($script:hoverPeek -and -not $wasPeek){
+    $slide.BeginAnimation([Windows.Media.TranslateTransform]::YProperty,$null);$slide.Y=-($Pill.ActualHeight+2)
+    Animate $slide ([Windows.Media.TranslateTransform]::YProperty) 0 .30
+  }
+
+  $desktopNow=[IslandWindowStyle]::DesktopForeground()
+  if($script:hoverExiting -and ($desktopNow -or $script:expanded)){
+    $script:hoverExiting=$false
+    $slide.BeginAnimation([Windows.Media.TranslateTransform]::YProperty,$null);$slide.Y=0
+  }elseif($script:hoverExiting -and ($zone -or $over)){
+    $script:hoverExiting=$false;$script:hoverPeek=$true;$script:hoverLeave=$null
+    Animate $slide ([Windows.Media.TranslateTransform]::YProperty) 0 .30
+  }
+  if($wasPeek -and -not $script:hoverPeek -and -not $script:expanded -and -not $desktopNow -and -not $script:hoverExiting){
+    $script:hoverExiting=$true
+    $outro=New-Object Windows.Media.Animation.DoubleAnimation
+    $outro.To=-($Pill.ActualHeight+2);$outro.Duration=[Windows.Duration]::new([timespan]::FromSeconds(.30))
+    $ease=New-Object Windows.Media.Animation.CubicEase;$ease.EasingMode='EaseInOut';$outro.EasingFunction=$ease
+    $outro.Add_Completed({
+      if($script:hoverExiting -and -not $script:hoverPeek -and -not $script:expanded){
+        $script:hoverExiting=$false
+        Update-DesktopVisibility
+        $slide.BeginAnimation([Windows.Media.TranslateTransform]::YProperty,$null);$slide.Y=0
+      }
+    })
+    $slide.BeginAnimation([Windows.Media.TranslateTransform]::YProperty,$outro)
+  }
+  Update-DesktopVisibility
+  Update-SystemAccent
+  Update-PrayerHome
   $down=(([IslandPointer]::GetAsyncKeyState(1) -band 0x8000) -ne 0) -or (([IslandPointer]::GetAsyncKeyState(2) -band 0x8000) -ne 0)
   if($script:expanded -and $down -and -not $script:pointerWasDown){
     $point=New-Object IslandPointer+Point;[void][IslandPointer]::GetCursorPos([ref]$point)
-    $local=$window.PointFromScreen([Windows.Point]::new($point.X,$point.Y))
-    if($local.X -lt 0 -or $local.X -gt $window.ActualWidth -or $local.Y -lt 0 -or $local.Y -gt $window.ActualHeight){
-      $script:forceClose=$true;$script:deadline=[datetime]::MinValue
+    $local=$Pill.PointFromScreen([Windows.Point]::new($point.X,$point.Y))
+    if($local.X -lt 0 -or $local.X -gt $Pill.ActualWidth -or $local.Y -lt 0 -or $local.Y -gt $Pill.ActualHeight){
+      Request-OutsideFold
     }
   }
   $script:pointerWasDown=$down
+  if($script:expanded -and -not $script:closing -and [datetime]::Now -gt $script:deadline){Restore-Home}
   $request=Join-Path $env:LOCALAPPDATA 'Sariyer Widgets\Rainmeter\Skins\SariyerWidgets\@Resources\PanelRequest.txt'
-  if(Test-Path -LiteralPath $request){Remove-Item -LiteralPath $request;$script:notification=$false;Select-Panel 'Prayer' $false;Expand}
+  if(Test-Path -LiteralPath $request){Remove-Item -LiteralPath $request;$script:notification=$false;$script:view='Prayer';Expand}
 })
 $navigationTimer.Start()
-Restore-Home
 $pauseGeometry=$PlayIcon.Data
 $playGeometry=[Windows.Media.Geometry]::Parse('M 2,0 Q 0,-1 0,2 L 0,23 Q 0,26 3,24 L 22,14 Q 25,12.5 22,11 Z')
 $script:collapsedWidth=340; $script:collapsedHeight=48; $script:active=$null; $script:expanded=$false; $script:closing=$false; $script:deadline=[datetime]::MinValue; $script:seen=@{}
@@ -175,30 +421,67 @@ function Animate($target,$property,$value,$seconds) {
     $target.BeginAnimation($property,$animation)
 }
 function Expand {
-    $script:forceClose=$false; $wasOpen=$script:expanded; $compact.Hide(); Select-Panel $script:view $false
-    $script:closing=$false; $script:expanded=$true; $script:deadline=[datetime]::Now.AddSeconds(6)
-    $window.Top=0
-    if(-not $wasOpen){$slide.BeginAnimation([Windows.Media.TranslateTransform]::YProperty,$null); $slide.Y=-($window.Height+2)}
-    PrayerVisible $false
-    $window.Show()
-    Animate $slide ([Windows.Media.TranslateTransform]::YProperty) 0 .45
+    $script:hoverExiting=$false;$script:hoverPeek=$false;$script:forceClose=$false;$script:closing=$false;$script:expanded=$true
+    $script:openedOverApp=-not [IslandWindowStyle]::DesktopForeground()
+    $script:slideNotification=$script:notification -and $script:openedOverApp
+    $slide.BeginAnimation([Windows.Media.TranslateTransform]::YProperty,$null)
+    $slide.Y=if($script:slideNotification){-162}else{0}
+    $window.Opacity=1;$window.IsHitTestVisible=$true;$window.Topmost=$true
+    Select-Panel $script:view $false
+    if($script:slideNotification){
+      $window.UpdateLayout()
+      $slide.Y=-($Pill.ActualHeight+2)
+      Animate $slide ([Windows.Media.TranslateTransform]::YProperty) 0 .40
+    }
+    $script:deadline=[datetime]::Now.AddSeconds(6)
+}
+function Update-TrackPresentation {
+    if($script:expanded){
+        # Metadata replacement is not a presentation transition.
+        # Keep existing music controls/art visible while new artwork loads.
+        if($script:view -eq 'Player'){
+            $script:deadline=[datetime]::Now.AddSeconds(6)
+            if($script:notification){
+                $script:forceClose=$false
+                if($script:closing){$script:closing=$false;Animate $slide ([Windows.Media.TranslateTransform]::YProperty) 0 .30}
+            }
+        }
+        return
+    }
+    $script:notification=$true
+    $script:view='Player'
+    Expand
+}
+function Resolve-PlaybackState([bool]$actual) {
+    if($script:playPending){
+        $task=$script:playCommandTask
+        $failed=$task -and ($task.IsFaulted -or $task.IsCanceled -or ($task.Status -eq 'RanToCompletion' -and -not $task.Result))
+        if($failed -or [datetime]::Now -gt $script:playPendingUntil){$script:playPending=$false}
+        elseif($actual -eq $script:desiredPlaying -and $task -and $task.Status -eq 'RanToCompletion'){$script:playPending=$false}
+        else{return [bool]$script:desiredPlaying}
+    }
+    return $actual
 }
 function Send-Control($command){
     if(-not $script:active){return}
     $script:deadline=[datetime]::Now.AddSeconds(6)
     if($command -eq 'Toggle'){
-      $script:optimisticPlaying=($PlayIcon.Data -ne $pauseGeometry)
-      $PlayIcon.Data=if($script:optimisticPlaying){$pauseGeometry}else{$playGeometry}
-      $operation=if($script:optimisticPlaying){$script:active.TryPlayAsync()}else{$script:active.TryPauseAsync()}
-      $script:controlUntil=[datetime]::Now.AddMilliseconds(350)
-    }elseif($command -eq 'Next'){$operation=$script:active.TrySkipNextAsync()}
-    else{$operation=$script:active.TrySkipPreviousAsync()}
-    $script:commandTask=$asTask.MakeGenericMethod([bool]).Invoke($null,@($operation))
+      if($script:playPending){return}
+      $script:desiredPlaying=-not $script:displayedPlaying
+      $script:playPending=$true;$script:playPendingUntil=[datetime]::Now.AddSeconds(3)
+      $script:displayedPlaying=$script:desiredPlaying
+      $PlayIcon.Data=if($script:desiredPlaying){$pauseGeometry}else{$playGeometry}
+      try{
+        $operation=if($script:desiredPlaying){$script:active.TryPlayAsync()}else{$script:active.TryPauseAsync()}
+        $script:playCommandTask=$asTask.MakeGenericMethod([bool]).Invoke($null,@($operation))
+      }catch{$script:playPending=$false}
+    }else{
+      $operation=if($command -eq 'Next'){$script:active.TrySkipNextAsync()}else{$script:active.TrySkipPreviousAsync()}
+      $script:commandTask=$asTask.MakeGenericMethod([bool]).Invoke($null,@($operation))
+    }
 }
-# Dispatch on press instead of waiting for mouse release.
-$Previous.Add_PreviewMouseLeftButtonDown({param($sender,$eventArgs) $eventArgs.Handled=$true; Send-Control 'Previous'})
-$Next.Add_PreviewMouseLeftButtonDown({param($sender,$eventArgs) $eventArgs.Handled=$true; Send-Control 'Next'})
-$Pause.Add_PreviewMouseLeftButtonDown({param($sender,$eventArgs) $eventArgs.Handled=$true; Send-Control 'Toggle'})
+# One routed event per physical press; keyboard activation uses the same handler.
+foreach($button in $Previous,$Pause,$Next){$button.ClickMode='Press'}
 $Previous.Add_Click({Send-Control 'Previous'})
 $Next.Add_Click({Send-Control 'Next'})
 $Pause.Add_Click({Send-Control 'Toggle'})
@@ -219,8 +502,9 @@ $bars=0..4 | ForEach-Object {$window.FindName('Bar'+$_)}
 $visualTimer.Add_Tick({
  if(-not $script:expanded -and -not $compact.IsVisible){return}
  $isPlaying=$false
- if($script:active){$isPlaying=[string]$script:active.GetPlaybackInfo().PlaybackStatus -eq 'Playing'}
- if($script:controlUntil -and [datetime]::Now -lt $script:controlUntil){$isPlaying=$script:optimisticPlaying}
+ if($script:active){try{$isPlaying=[string]$script:active.GetPlaybackInfo().PlaybackStatus -eq 'Playing'}catch{$script:active=$null}}
+ $isPlaying=Resolve-PlaybackState $isPlaying
+ $script:displayedPlaying=$isPlaying
  $PlayIcon.Data=if($isPlaying){$pauseGeometry}else{$playGeometry}
  $peak=if($isPlaying){[double]$audioMeter.Read()}else{0}
  for($j=4;$j -gt 0;$j--){$audioHistory[$j]=$audioHistory[$j-1]}
@@ -266,9 +550,10 @@ $timer.Add_Tick({
       $socialTitle=$properties.Title -match '(?i)^\s*(\(\d+\)\s*)?(Instagram|Facebook|TikTok|X|Twitter)(\s*[-–|·].*)?\s*$'
       $genericTitle=$properties.Title -match '(?i)^\s*(Google Chrome|Chrome|Microsoft Edge|Mozilla Firefox|New Tab)\s*$'
       $eligible=-not ($browserSession -and ($socialTitle -or $genericTitle))
+      if($eligible -and $properties.Title){$script:active=$candidate}
       if($properties.Title -and $playing -and $eligible -and $script:seen[$id] -ne $key) {
         $script:seen[$id]=$key; $script:active=$candidate
-        $Song.Text=$properties.Title; $Artist.Text=$properties.Artist; $Art.Source=$null
+        $Song.Text=$properties.Title; $Artist.Text=$properties.Artist
         if($properties.Thumbnail) {
           $stream=$null; $reader=$null
           try {
@@ -276,7 +561,7 @@ $timer.Add_Tick({
             $script:artKey=$key
           } catch {} finally {if($reader){$reader.Dispose()}}
         }
-        if(-not $script:expanded -or $script:notification){$script:notification=$true;Select-Panel 'Player' $false;Expand}
+        Update-TrackPresentation
       }
     }
     if($script:artTask -and $script:artTask.IsCompleted){
@@ -329,25 +614,19 @@ $timer.Add_Tick({
           if($age -ge 0 -and $age -le $duration){$position+=$age}
         }
         $position=[math]::Max(0.0,[math]::Min([double]$duration,[double]$position))
-        if(-not $script:controlUntil -or [datetime]::Now -gt $script:controlUntil){$PlayIcon.Data=if([string]$script:active.GetPlaybackInfo().PlaybackStatus -eq 'Playing'){$pauseGeometry}else{$playGeometry}}
+        # Icon state is written only by the visual clock and direct user action.
         $Elapsed.Text=TimeText $position; $Remaining.Text='-'+(TimeText ($duration-$position))
         $Progress.Value=if($duration -gt 0){[math]::Max(0.0,[math]::Min(1.0,$position/$duration))}else{0}
       }
       if([datetime]::Now -gt $script:deadline -and -not $script:closing) {
-        $script:closing=$true
-        $exit=New-Object Windows.Media.Animation.DoubleAnimation
-        $exit.To=-($window.Height+2); $exit.Duration=[Windows.Duration]::new([timespan]::FromSeconds(.40))
-        $ease=New-Object Windows.Media.Animation.CubicEase; $ease.EasingMode='EaseInOut'; $exit.EasingFunction=$ease
-        $exit.Add_Completed({
-          if($script:closing){$window.Hide(); Restore-Home; $script:expanded=$false; $script:closing=$false}
-        })
-        $slide.BeginAnimation([Windows.Media.TranslateTransform]::YProperty,$exit)
+        Restore-Home
       }
     }
  } catch {
-    if($script:expanded){$window.Hide(); PrayerVisible $true; $script:expanded=$false}
+    if($script:expanded){Restore-Home}
     $_.Exception.Message | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'Music-Island-error.log')
  }
 })
+Restore-Home
 try { $timer.Start(); [Windows.Threading.Dispatcher]::Run() }
-finally { $navigationTimer.Stop(); $compact.Close(); $visualTimer.Stop(); $timer.Stop(); PrayerVisible $true; $mutex.ReleaseMutex(); $mutex.Dispose() }
+finally { $navigationTimer.Stop(); $visualTimer.Stop(); $timer.Stop(); PrayerVisible $false; $mutex.ReleaseMutex(); $mutex.Dispose() }

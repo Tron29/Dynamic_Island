@@ -21,6 +21,7 @@ local lastPrayerRead = 0
 local prayerSnapshotUpdated
 local displayProgress, progressRate, progressCorrection
 local displayedName, nameTransition
+local homeIntro
 
 local function smooth(value)
   value = math.max(0, math.min(1, value))
@@ -211,6 +212,16 @@ local function setProgressWidth(progress)
 end
 
 function AnimatePrayer()
+  if homeIntro then
+    homeIntro = math.min(1, homeIntro + 0.016 / 0.30)
+    local scale = tonumber(SKIN:GetVariable("S"))
+    local screenWidth = tonumber(SKIN:GetVariable("SCREENAREAWIDTH"))
+    local left = tonumber(SKIN:GetVariable("SCREENAREAX")) + (screenWidth - 480 * scale) / 2
+    local top = tonumber(SKIN:GetVariable("SCREENAREAY"))
+    local eased = 1 - (1 - homeIntro) ^ 3
+    SKIN:Bang("!Move", math.floor(left), math.floor(top - 50 * scale * (1 - eased)))
+    if homeIntro == 1 then homeIntro = nil end
+  end
   frame = frame + 1
   dirty = false
   animatePrayerLayout()
@@ -274,6 +285,15 @@ local function prayer(now)
   else
     period = realPrayerPeriod(now)
   end
+  if SKIN:GetVariable("Headless") == "1" then
+    local progress = period and math.max(0, math.min(1, (now - period.start) / (period.finish - period.start))) or 0
+    local home = io.open(resources .. "PrayerHome.txt", "w")
+    if home then
+      home:write((period and period.name or "Unavailable") .. "\n" .. (period and clock(period.start) or "—") .. "\n" .. (period and clock(period.finish) or "—") .. "\n" .. tostring(progress))
+      home:close()
+    end
+    return
+  end
   local identity = period and period.name .. period.start or "unavailable"
   local periodChanged = shownPeriod ~= identity
   if periodChanged then
@@ -299,6 +319,11 @@ local function prayer(now)
   text("PrayerStart", period and clock(period.start))
   text("PrayerEnd", period and clock(period.finish))
   local progress = period and math.max(0, math.min(1, (now - period.start) / (period.finish - period.start))) or 0
+  local home = io.open(resources .. "PrayerHome.txt", "w")
+  if home then
+    home:write((period and period.name or "Unavailable") .. "\n" .. (period and clock(period.start) or "—") .. "\n" .. (period and clock(period.finish) or "—") .. "\n" .. tostring(progress))
+    home:close()
+  end
   if demo then
     progressRate = 1 / seconds
     if periodChanged or not displayProgress then displayProgress = progress end
@@ -311,7 +336,26 @@ local function prayer(now)
   end
 end
 
+function BeginHomeIntro()
+  homeIntro = 0
+  AnimatePrayer()
+  SKIN:Bang("!UpdateMeter", "*")
+  SKIN:Bang("!Redraw")
+  SKIN:Bang("!CommandMeasure", "Animator", "Stop 1")
+  SKIN:Bang("!CommandMeasure", "Animator", "Execute 1")
+end
+
+function AnimateHomeWidth(fromWidth)
+  if not islandWidth or not nameSpan then return end
+  local scale = tonumber(SKIN:GetVariable("S"))
+  nameSpan = math.max(8 * scale, nameSpan + fromWidth - islandWidth)
+  nameVelocity = 0
+  SKIN:Bang("!CommandMeasure", "Animator", "Stop 1")
+  SKIN:Bang("!CommandMeasure", "Animator", "Execute 1")
+end
+
 function CenterIsland()
+  if SKIN:GetVariable("Headless") == "1" then return end
   local width = math.floor(480 * tonumber(SKIN:GetVariable("S")) + 0.5)
   local left = tonumber(SKIN:GetVariable("SCREENAREAX"))
   local screenWidth = tonumber(SKIN:GetVariable("SCREENAREAWIDTH"))
@@ -418,6 +462,18 @@ end
 
 function Update()
   dirty = false
+  local accentFile = io.open(resources .. "SystemAccent.txt", "r")
+  if accentFile then
+    local accent = accentFile:read("*l")
+    accentFile:close()
+    if accent and accent:match("^%d+,%d+,%d+$") and accent ~= SKIN:GetVariable("Accent") then
+      SKIN:Bang("!SetVariable", "Accent", accent)
+      if kind == "Prayer" and SKIN:GetVariable("Headless") ~= "1" and not nameTransition then
+        nameLayer("Incoming", 1, 0)
+        nameLayer("Previous", 0, 0)
+      end
+    end
+  end
   local now = os.time()
   if kind == "Prayer" then prayer(now) else agenda(now) end
   if dirty then

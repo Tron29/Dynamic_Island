@@ -4,13 +4,17 @@ Windows desktop prayer island and music player, built with Rainmeter and a nativ
 
 - Live Sarıyer/Istanbul prayer times, with a compact progress pill and expanded daily timetable.
 - Spotify and supported browser media controls, centered artwork, audio-reactive bars and album colors.
-- Compact, expanded and song-change notification views; outside-click dismissal.
+- One continuous surface resizes between compact, expanded and song-change notification views.
+- Folded island stays on the desktop; hold the pointer at the top center for one second to reveal it over an app.
+- Over apps, notifications slide fully in and out through the screen edge.
+- Outside clicks immediately close manual panels; notifications use a short delay, with a fresh countdown on each new track.
+- Moon & Sound navigation icons, Windows accent colors, and controls excluded from Alt+Tab.
 - Choose Prayer or Player as the default home view.
 - Optional separate Google Calendar widget with a local iCal connection.
 
 ## Requirements
 
-Windows 10/11, Rainmeter, Node.js, and Windows PowerShell 5.1. Install Rainmeter and Node.js yourself before setup. No Lively installation is needed. Media players must publish Windows media sessions. Sound bars meter the default playback output, so other computer sounds can influence them.
+Windows 10/11, Rainmeter, Node.js, and Windows PowerShell 5.1. Install Rainmeter and Node.js yourself before setup. No Lively installation is needed. Media players must publish Windows media sessions. Sound bars meter active playback outputs and respect their volume/mute settings, so other computer sounds can influence them.
 
 ## First installation
 
@@ -42,4 +46,4 @@ This repository excludes personal runtime backups, private calendar feeds, cache
 
 ## Known limitations
 
-Windows scaling changes physical dimensions. Exclusive fullscreen/protected windows may cover notifications. The compact WPF player is a regular non-topmost window; it does not yet enforce Rainmeter's desktop-only placement. Browser metadata quality depends on the website; generic social-site tab notifications are filtered. The new fresh-install script has been syntax-checked but has not been exercised on a separate clean Windows machine.
+Windows scaling changes physical dimensions. Exclusive fullscreen/protected windows may cover notifications. Compact visibility follows desktop focus and visible-app detection on the primary screen. The native prayer skin supplies data only; all visible island views share one WPF window. Browser metadata quality depends on the website; generic social-site tab notifications are filtered. The new fresh-install script has been syntax-checked but has not been exercised on a separate clean Windows machine.
