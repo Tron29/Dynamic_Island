@@ -1,0 +1,8 @@
+{
+  "AppVersion": "2.2.1.0",
+  "Title": "Sarıyer Prayer Dashboard",
+  "Desc": "Diyanet’s Istanbul timetable for Sarıyer, with live countdowns and progress bars.",
+  "Type": 1,
+  "FileName": "index.html",
+  "IsAbsolutePath": false
+}

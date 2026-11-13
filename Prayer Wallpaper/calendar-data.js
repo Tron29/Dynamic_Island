@@ -1,0 +1,1 @@
+receiveCalendarData(null);

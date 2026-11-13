@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sarıyer Prayer Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="schedule.js"></script>
+  <script defer src="widgets.js"></script>
+  <script defer src="calendar.js"></script>
+  <script defer src="script.js"></script>
+</head>
+<body>
+  <main class="dashboard" id="prayer-widget" aria-label="Sarıyer prayer timetable" title="Drag to move the widget">
+    <header class="heading" title="Drag to move">
+      <h1>Sarıyer</h1>
+      <button class="widget-settings-trigger" type="button" aria-label="Prayer settings" title="Prayer settings">⋯</button>
+    </header>
+    <section class="time-display" aria-label="Sarıyer local time and prayer countdown">
+      <time id="current-time">--:--:--</time>
+      <p id="prayer-countdown" role="timer" aria-label="Time until the next prayer">—</p>
+    </section>
+    <table aria-label="Prayer and night times with start time, progress and end time">
+      <colgroup><col class="label"><col class="time"><col><col class="time"></colgroup>
+      <tbody id="prayer-times"></tbody>
+      <tfoot id="night-times"></tfoot>
+    </table>
+    <p id="status" role="status" hidden></p>
+  </main>
+  <section class="dashboard calendar-widget" id="calendar-widget" aria-label="Calendar">
+    <div class="calendar-content">
+      <header class="calendar-heading">
+        <h2 id="calendar-day">Today</h2>
+        <button id="calendar-today" class="calendar-control" type="button" hidden>Today</button>
+        <button id="calendar-date-button" class="calendar-control" type="button" aria-label="Choose a date" aria-expanded="false" aria-controls="calendar-picker">
+          <time id="calendar-date"></time>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+        </button>
+        <button class="widget-settings-trigger" type="button" aria-label="Calendar settings" title="Calendar settings">⋯</button>
+      </header>
+      <section id="calendar-picker" class="calendar-agenda" aria-label="Choose a date" hidden>
+        <header class="month-heading">
+          <h3 id="calendar-month"></h3>
+          <button id="calendar-previous" class="calendar-control month-arrow" type="button" aria-label="Previous month">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 4-4 4 4 4"/></svg>
+          </button>
+          <button id="calendar-next" class="calendar-control month-arrow" type="button" aria-label="Next month">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+          </button>
+        </header>
+        <div class="month-grid month-weekdays" aria-hidden="true">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div id="calendar-days" class="month-grid"></div>
+      </section>
+      <div id="calendar-agenda" class="calendar-agenda">
+        <div id="calendar-events"></div>
+        <p id="calendar-status">Connect Google Calendar to see today’s events.</p>
+      </div>
+    </div>
+  </section>
+  <div id="widget-options" aria-label="Widget settings" hidden>
+    <strong id="widget-options-title"></strong>
+    <label>Opacity <input id="widget-opacity" type="range" min="50" max="100"></label>
+    <label><span id="widget-toggle-label"></span><input id="widget-toggle" type="checkbox"></label>
+    <button id="widget-palette-settings" type="button">Palette</button>
+    <button id="widget-calendar-settings" type="button">Google Calendar setup</button>
+    <button id="widget-reset" type="button">Reset position and size</button>
+  </div>
+  <dialog id="widget-palette" aria-labelledby="palette-title">
+    <h2 id="palette-title">Widget palette</h2>
+    <fieldset class="palette-scope">
+      <legend>Apply changes to</legend>
+      <label><input type="radio" name="palette-scope" value="one" checked> This widget</label>
+      <label><input type="radio" name="palette-scope" value="both"> Both widgets</label>
+    </fieldset>
+    <div id="palette-presets" aria-label="Palette presets"></div>
+    <div class="palette-colors">
+      <label>Background <input type="color" data-palette-color="background"></label>
+      <label>Text <input type="color" data-palette-color="text"></label>
+      <label>Accent <input type="color" data-palette-color="accent"></label>
+    </div>
+    <form method="dialog"><button>Done</button></form>
+  </dialog>
+  <dialog id="calendar-setup" aria-labelledby="calendar-setup-title">
+    <h2 id="calendar-setup-title">Google Calendar</h2>
+    <p id="calendar-desktop-help">Open <strong>Edit desktop widgets</strong> from Start. Right-click the calendar and choose <strong>Google Calendar setup</strong>.</p>
+    <form id="calendar-connection" hidden>
+      <p>In Google Calendar, open your calendar’s settings and choose <strong>Integrate calendar</strong>. Copy its <strong>Secret address in iCal format</strong> and paste it here.</p>
+      <label for="calendar-source">Calendar address</label>
+      <input id="calendar-source" type="password" autocomplete="off" spellcheck="false" required>
+      <p id="calendar-connection-status" role="status"></p>
+      <div class="calendar-setup-actions">
+        <button type="submit">Connect calendar</button>
+        <button id="calendar-disconnect" type="button">Disconnect</button>
+      </div>
+    </form>
+    <form method="dialog"><button>Close</button></form>
+  </dialog>
+  <template id="resize-handles">
+    <span class="resize-handle horizontal" data-resize="n" title="Drag to change height" aria-hidden="true"></span>
+    <span class="resize-handle horizontal" data-resize="s" title="Drag to change height" aria-hidden="true"></span>
+    <span class="resize-handle vertical" data-resize="w" title="Drag to change width" aria-hidden="true"></span>
+    <span class="resize-handle vertical" data-resize="e" title="Drag to change width" aria-hidden="true"></span>
+    <span class="resize-handle corner" data-resize="nw" title="Drag to change width and height" aria-hidden="true"></span>
+    <span class="resize-handle corner" data-resize="ne" title="Drag to change width and height" aria-hidden="true"></span>
+    <span class="resize-handle corner" data-resize="sw" title="Drag to change width and height" aria-hidden="true"></span>
+    <span class="resize-handle corner" data-resize="se" title="Drag to change width and height" aria-hidden="true"></span>
+  </template>
+  <template id="time-row">
+    <tr>
+      <th scope="row"></th>
+      <td class="clock-time start-time"><time>—</time></td>
+      <td><span class="track" aria-hidden="true"><span class="fill"></span></span></td>
+      <td class="clock-time end-time"><time>—</time></td>
+    </tr>
+  </template>
+</body>
+</html>

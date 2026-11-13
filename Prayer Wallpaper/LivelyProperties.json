@@ -1,0 +1,145 @@
+{
+  "positionX": {
+    "type": "slider",
+    "text": "Horizontal position",
+    "help": "0 is the left edge and 100 is the right edge",
+    "min": 0,
+    "max": 100,
+    "step": 1,
+    "value": 100
+  },
+  "positionY": {
+    "type": "slider",
+    "text": "Vertical position",
+    "help": "0 is the top edge and 100 is the bottom edge",
+    "min": 0,
+    "max": 100,
+    "step": 1,
+    "value": 0
+  },
+  "panelScale": {
+    "type": "slider",
+    "text": "Widget size",
+    "help": "Scales text and automatic panel sizing",
+    "min": 60,
+    "max": 150,
+    "step": 1,
+    "value": 100
+  },
+  "panelWidth": {
+    "type": "slider",
+    "text": "Panel width",
+    "help": "Width in pixels. Set to 0 for automatic sizing.",
+    "min": 0,
+    "max": 4000,
+    "step": 1,
+    "value": 0
+  },
+  "panelHeight": {
+    "type": "slider",
+    "text": "Panel height",
+    "help": "Height in pixels. Set to 0 for automatic sizing.",
+    "min": 0,
+    "max": 4000,
+    "step": 1,
+    "value": 0
+  },
+  "panelOpacity": {
+    "type": "slider",
+    "text": "Panel opacity",
+    "help": "Opacity as a percentage",
+    "min": 50,
+    "max": 100,
+    "step": 1,
+    "value": 96
+  },
+  "clockSeconds": {
+    "type": "checkbox",
+    "text": "Show clock seconds",
+    "value": true
+  },
+  "calendarX": {
+    "type": "slider",
+    "text": "Calendar horizontal position",
+    "min": 0,
+    "max": 100,
+    "step": 1,
+    "value": 53
+  },
+  "calendarY": {
+    "type": "slider",
+    "text": "Calendar vertical position",
+    "min": 0,
+    "max": 100,
+    "step": 1,
+    "value": 0
+  },
+  "calendarWidth": {
+    "type": "slider",
+    "text": "Calendar width",
+    "help": "Width in pixels. Set to 0 for automatic sizing.",
+    "min": 0,
+    "max": 4000,
+    "step": 1,
+    "value": 0
+  },
+  "calendarHeight": {
+    "type": "slider",
+    "text": "Calendar height",
+    "help": "Height in pixels. Set to 0 for automatic sizing.",
+    "min": 0,
+    "max": 4000,
+    "step": 1,
+    "value": 0
+  },
+  "calendarOpacity": {
+    "type": "slider",
+    "text": "Calendar opacity",
+    "min": 50,
+    "max": 100,
+    "step": 1,
+    "value": 96
+  },
+  "calendarShowFinished": {
+    "type": "checkbox",
+    "text": "Show finished calendar events",
+    "value": true
+  },
+  "accent": {
+    "type": "color",
+    "text": "Prayer accent color",
+    "value": "#9EE6A8"
+  },
+  "panelBackground": {
+    "type": "color",
+    "text": "Prayer background color",
+    "value": "#0F1012"
+  },
+  "panelText": {
+    "type": "color",
+    "text": "Prayer text color",
+    "value": "#FAFAFA"
+  },
+  "calendarAccent": {
+    "type": "color",
+    "text": "Calendar accent color",
+    "value": "#9EE6A8"
+  },
+  "calendarBackground": {
+    "type": "color",
+    "text": "Calendar background color",
+    "value": "#0F1012"
+  },
+  "calendarText": {
+    "type": "color",
+    "text": "Calendar text color",
+    "value": "#FAFAFA"
+  },
+  "wallpaperImage": {
+    "type": "folderDropdown",
+    "text": "Background image",
+    "folder": "backgrounds",
+    "filter": "*.svg|*.jpg|*.jpeg|*.png|*.webp",
+    "value": "Midnight.svg"
+  }
+}
