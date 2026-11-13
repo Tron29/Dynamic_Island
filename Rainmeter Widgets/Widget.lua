@@ -2,6 +2,7 @@ local daySeconds = 86400
 local weekdays = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
 local months = {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"}
 local calendar = {}
+local calendarRows = {}
 local selected = nil
 local picker = false
 local offset = 0
@@ -450,6 +451,7 @@ local function agenda(now)
   text("Status", not events and "Calendar data unavailable for this date." or (#visible == 0 and "No events on this date." or ""))
   for i = 0, 7 do
     local event = visible[offset + i + 1]
+    calendarRows[i] = event
     for _, name in ipairs({"EventBg", "EventName", "EventTime"}) do hidden(name .. i, not event) end
     if event then
       text("EventName" .. i, event.title:gsub("[\r\n]", " "))
@@ -458,6 +460,14 @@ local function agenda(now)
       option("EventName" .. i, "FontColor", active and SKIN:GetVariable("Accent") or SKIN:GetVariable("Text"))
     end
   end
+end
+
+function OpenCalendarEvent(index)
+  local event = calendarRows[index]
+  if not event then return end
+  local link = "https://calendar.google.com/calendar/u/0/r/day/" .. os.date("!%Y/%m/%d", event.start / 1000 + 10800)
+  if type(event.url) == "string" and event.url:match("^https://calendar%.google%.com/") and not event.url:find('["%c]') then link = event.url end
+  SKIN:Bang('["' .. link .. '"]')
 end
 
 function Update()

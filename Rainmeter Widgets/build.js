@@ -146,9 +146,9 @@ for (const kind of ["Prayer", "Calendar"]) {
       }) + text("Status", 34, 102, 370, 11, { FontColor: "#Muted#" });
     for (let i = 0; i < 8; i++) {
       const y = 94 + i * 39;
-      skin += shape("EventBg" + i, 34, y, 372, 34, 7, "25,27,30", { Group: "Agenda" }) +
-        text("EventName" + i, 44, y + 7, 240, 11, { Group: "Agenda" }) +
-        text("EventTime" + i, 395, y + 8, 100, 10, { StringAlign: "Right", FontColor: "#Muted#", Group: "Agenda" });
+      skin += shape("EventBg" + i, 34, y, 372, 34, 7, "25,27,30", { Group: "Agenda", LeftMouseUpAction: '[!CommandMeasure Logic "OpenCalendarEvent(' + i + ')"]', ToolTipText: "Open in Google Calendar" }) +
+        text("EventName" + i, 44, y + 7, 240, 11, { Group: "Agenda", LeftMouseUpAction: '[!CommandMeasure Logic "OpenCalendarEvent(' + i + ')"]', ToolTipText: "Open in Google Calendar" }) +
+        text("EventTime" + i, 395, y + 8, 100, 10, { StringAlign: "Right", FontColor: "#Muted#", Group: "Agenda", LeftMouseUpAction: '[!CommandMeasure Logic "OpenCalendarEvent(' + i + ')"]', ToolTipText: "Open in Google Calendar" });
     }
     skin += text("Month", 34, 98, 260, 14, { Group: "Picker", Hidden: 1 }) +
       text("Previous", 340, 98, 30, 16, { Text: "‹", Group: "Picker", Hidden: 1, LeftMouseUpAction: '[!CommandMeasure Logic "ChangeMonth(-1)"]' }) +

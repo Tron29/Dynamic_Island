@@ -42,6 +42,21 @@ public static bool DesktopForeground(){
 [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")] public static extern IntPtr Get(IntPtr hwnd,int index);
 [DllImport("user32.dll",EntryPoint="SetWindowLongPtrW")] public static extern IntPtr Set(IntPtr hwnd,int index,IntPtr value);
 [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int w,int h,uint flags);
+[DllImport("user32.dll")] static extern bool ShowWindowAsync(IntPtr hwnd,int command);
+[DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hwnd);
+[DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr hwnd,System.Text.StringBuilder text,int length);
+public static bool OpenSource(string source,string song){
+ string lower=source.ToLowerInvariant();string processName=null;
+ foreach(string name in new[]{"spotify","chrome","msedge","firefox","brave","opera","vlc"})if(lower.Contains(name)){processName=name;break;}
+ if(processName==null)return false;
+ var ids=new System.Collections.Generic.HashSet<uint>();foreach(var process in System.Diagnostics.Process.GetProcessesByName(processName)){ids.Add((uint)process.Id);process.Dispose();}
+ IntPtr best=IntPtr.Zero;int bestScore=-1;
+ EnumWindows((hwnd,data)=>{uint pid;GetWindowThreadProcessId(hwnd,out pid);if(!ids.Contains(pid))return true;
+ var text=new System.Text.StringBuilder(1024);GetWindowText(hwnd,text,1024);if(text.Length==0||(Get(hwnd,-20).ToInt64()&0x80)!=0)return true;
+ int score=IsWindowVisible(hwnd)?1:0;if(!String.IsNullOrWhiteSpace(song)&&text.ToString().IndexOf(song,StringComparison.OrdinalIgnoreCase)>=0)score+=10;
+ if(score>bestScore){best=hwnd;bestScore=score;}return true;},IntPtr.Zero);
+ if(best==IntPtr.Zero)return false;ShowWindowAsync(best,IsIconic(best)?9:5);return SetForegroundWindow(best);
+}
 public static void Apply(IntPtr hwnd){long style=Get(hwnd,-20).ToInt64();style=(style|0x80L|0x08000000L)&~0x40000L;Set(hwnd,-20,new IntPtr(style));SetWindowPos(hwnd,IntPtr.Zero,0,0,0,0,0x37);}
 }
 "@
@@ -83,7 +98,7 @@ function PrayerVisible([bool]$visible) {
   <Grid>
 <Grid Name="PanelHeader" Margin="34,8,34,0" Height="30" VerticalAlignment="Top"><StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
 <Button Name="PrayerTab" Width="34" Height="28" ToolTip="Prayer"><Viewbox Width="20" Height="20"><Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" Data="M 20.8,13 A 9,9 0 1 1 11,3.2 A 7,7 0 0 0 20.8,13 M 18,1 L 19.2,4.8 L 23,6 L 19.2,7.2 L 18,11 L 16.8,7.2 L 13,6 L 16.8,4.8 Z"/></Viewbox></Button>
-<Button Name="PlayerTab" Width="34" Height="28" ToolTip="Player"><Viewbox Width="20" Height="20"><Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M 2,10 L 2,14 M 6,6 L 6,18 M 10,3 L 10,21 M 14,8 L 14,16 M 18,5 L 18,19 M 22,10 L 22,14"/></Viewbox></Button></StackPanel>
+<Button Name="PlayerTab" Width="34" Height="28" ToolTip="Player"><Viewbox Width="20" Height="20"><Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M 2,10 L 2,14 M 6,6 L 6,18 M 10,3 L 10,21 M 14,8 L 14,16 M 18,5 L 18,19 M 22,10 L 22,14"/></Viewbox></Button><Button Name="CalendarTab" Width="34" Height="28" ToolTip="Calendar"><Viewbox Width="20" Height="20"><Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" StrokeLineJoin="Round" Fill="Transparent" Data="M 4,5 L 20,5 Q 22,5 22,7 L 22,21 Q 22,23 20,23 L 4,23 Q 2,23 2,21 L 2,7 Q 2,5 4,5 Z M 7,2 L 7,8 M 17,2 L 17,8 M 2,11 L 22,11 M 7,15 L 9,15 M 15,15 L 17,15 M 7,19 L 9,19"/></Viewbox></Button></StackPanel>
 <ToggleButton Name="DefaultToggle" Width="34" Height="20" HorizontalAlignment="Right" ToolTip="Use this panel as home"><ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Grid><Border Name="Track" Background="#363638" CornerRadius="10"/><Ellipse Name="Thumb" Width="16" Height="16" Fill="White" HorizontalAlignment="Left" Margin="2"/></Grid><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="Track" Property="Background" Value="{DynamicResource SystemAccentBrush}"/><Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/></Trigger></ControlTemplate.Triggers></ControlTemplate></ToggleButton.Template></ToggleButton>
 <Button Name="ClosePanel" Visibility="Collapsed"/></Grid>
 <StackPanel Name="PrayerView" Margin="38,48,38,16" Visibility="Collapsed"><TextBlock Name="PrayerDate" Foreground="#999999" Margin="0,0,0,10"/><StackPanel Name="PrayerRows"/></StackPanel>
@@ -99,7 +114,7 @@ function PrayerVisible([bool]$visible) {
 <Rectangle Name="Bar4" Width="3" Height="11" RadiusX="1.5" RadiusY="1.5" Fill="#8CB6C1" Margin="1.5,0" VerticalAlignment="Center"/>
 </StackPanel>
    </Grid>
-   <Grid Grid.Row="1" VerticalAlignment="Center"><Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition/><ColumnDefinition Width="40"/></Grid.ColumnDefinitions><TextBlock Name="Elapsed" FontSize="10" Foreground="#999999"/><ProgressBar Name="Progress" Grid.Column="1" Height="4" Foreground="#BBBBBB" Background="#303030" BorderThickness="0" Maximum="1"/><TextBlock Name="Remaining" Grid.Column="2" Foreground="#999999" HorizontalAlignment="Right"/></Grid>
+   <Grid Grid.Row="1" VerticalAlignment="Center"><Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition/><ColumnDefinition Width="40"/></Grid.ColumnDefinitions><TextBlock Name="Elapsed" FontSize="10" Foreground="#999999"/><Grid Name="SeekArea" Grid.Column="1" Height="22" Background="Transparent" Cursor="Hand" ToolTip="Click or drag to seek"><ProgressBar Name="Progress" Height="4" VerticalAlignment="Center" Foreground="#BBBBBB" Background="#303030" BorderThickness="0" Maximum="1" IsHitTestVisible="False"/></Grid><TextBlock Name="Remaining" Grid.Column="2" Foreground="#999999" HorizontalAlignment="Right"/></Grid>
    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
     <Button Name="Previous"><Viewbox Width="27" Height="22"><Path Fill="White" Data="M 13,1 Q 14,0 14,2 L 14,20 Q 14,22 12,21 L 0,12 Q -1,11 0,10 Z M 27,1 Q 28,0 28,2 L 28,20 Q 28,22 26,21 L 14,12 Q 13,11 14,10 Z"/></Viewbox></Button>
 <Button Name="Pause"><Viewbox Width="23" Height="25"><Path Name="PlayIcon" Fill="White" Data="M 2,0 L 7,0 Q 9,0 9,2 L 9,23 Q 9,25 7,25 L 2,25 Q 0,25 0,23 L 0,2 Q 0,0 2,0 Z M 16,0 L 21,0 Q 23,0 23,2 L 23,23 Q 23,25 21,25 L 16,25 Q 14,25 14,23 L 14,2 Q 14,0 16,0 Z"/></Viewbox></Button>
@@ -138,10 +153,10 @@ $slide=New-Object Windows.Media.TranslateTransform
 $Pill.RenderTransform=$slide
 $script:defaultPanelPath=Join-Path $env:LOCALAPPDATA 'Sariyer Widgets\IslandHome.txt'
 $script:defaultPanel='Prayer'
-if(Test-Path -LiteralPath $script:defaultPanelPath){$saved=[IO.File]::ReadAllText($script:defaultPanelPath).Trim();if($saved -in @('Prayer','Player')){$script:defaultPanel=$saved}}
+if(Test-Path -LiteralPath $script:defaultPanelPath){$saved=[IO.File]::ReadAllText($script:defaultPanelPath).Trim();if($saved -in @('Prayer','Player','Calendar')){$script:defaultPanel=$saved}}
 $script:view='Player'
 $prayerView=$window.FindName('PrayerView');$prayerRows=$window.FindName('PrayerRows');$prayerDate=$window.FindName('PrayerDate')
-$prayerTab=$window.FindName('PrayerTab');$playerTab=$window.FindName('PlayerTab')
+$prayerTab=$window.FindName('PrayerTab');$playerTab=$window.FindName('PlayerTab');$calendarTab=$window.FindName('CalendarTab')
 # Windows DWM stores AccentColor as ABGR. Keep the accent legible on black.
 function Update-SystemAccent {
   if($script:nextAccentRead -and [datetime]::Now -lt $script:nextAccentRead){return}
@@ -175,6 +190,7 @@ foreach($name in @('CompactArt','SmallBar0','SmallBar1','SmallBar2','SmallBar3',
 $prayerHome=[Windows.Markup.XamlReader]::Load((New-Object Xml.XmlNodeReader $prayerHomeXaml))
 [void]$Pill.Child.Children.Add($prayerHome)
 $compact=$window
+. (Join-Path $PSScriptRoot 'Calendar-Island.ps1')
 function Update-PrayerHome {
   $file=Join-Path $env:LOCALAPPDATA 'Sariyer Widgets\Rainmeter\Skins\SariyerWidgets\@Resources\PrayerHome.txt'
   if(Test-Path -LiteralPath $file){
@@ -223,8 +239,8 @@ function Update-DesktopVisibility {
     # Prepare compact content before the hidden-to-desktop entrance.
     $Pill.BeginAnimation([Windows.FrameworkElement]::WidthProperty,$null)
     $Pill.BeginAnimation([Windows.FrameworkElement]::HeightProperty,$null)
-    $Pill.Width=if($script:defaultPanel -eq 'Player'){296.0}else{428.0}
-    $Pill.Height=if($script:defaultPanel -eq 'Player'){32.0}else{47.0}
+    $Pill.Width=if($script:defaultPanel -eq 'Player'){296.0}elseif($script:defaultPanel -eq 'Calendar'){336.0}else{428.0}
+    $Pill.Height=if($script:defaultPanel -eq 'Player'){32.0}elseif($script:defaultPanel -eq 'Calendar'){38.0}else{47.0}
     $Pill.Child.BeginAnimation([Windows.UIElement]::OpacityProperty,$null);$Pill.Child.Opacity=1
     $window.UpdateLayout()
     $slide.BeginAnimation([Windows.Media.TranslateTransform]::YProperty,$null)
@@ -259,12 +275,13 @@ function Restore-Home([double]$fromWidth=0) {
   $script:expanded=$false;$script:closing=$false;$script:notification=$false
   $script:view=$script:defaultPanel
   $window.FindName('PanelHeader').Visibility='Collapsed'
-  $Content.Visibility='Collapsed';$prayerView.Visibility='Collapsed'
+  $Content.Visibility='Collapsed';$prayerView.Visibility='Collapsed';$calendarView.Visibility='Collapsed';$calendarNotice.Visibility='Collapsed'
   $compactHome.Visibility=if($script:defaultPanel -eq 'Player'){'Visible'}else{'Collapsed'}
   $prayerHome.Visibility=if($script:defaultPanel -eq 'Prayer'){'Visible'}else{'Collapsed'}
+  $calendarHome.Visibility=if($script:defaultPanel -eq 'Calendar'){'Visible'}else{'Collapsed'}
   Update-PrayerHome
-  $width=if($script:defaultPanel -eq 'Player'){296.0}else{428.0}
-  $height=if($script:defaultPanel -eq 'Player'){32.0}else{47.0}
+  $width=if($script:defaultPanel -eq 'Player'){296.0}elseif($script:defaultPanel -eq 'Calendar'){336.0}else{428.0}
+  $height=if($script:defaultPanel -eq 'Player'){32.0}elseif($script:defaultPanel -eq 'Calendar'){38.0}else{47.0}
   $window.Width=480;$window.Height=280;$window.Top=0
   $window.Left=([Windows.SystemParameters]::PrimaryScreenWidth-480)/2
   $slide.BeginAnimation([Windows.Media.TranslateTransform]::YProperty,$null);$slide.Y=0
@@ -285,20 +302,24 @@ function Select-Panel($view,[bool]$save){
     Animate $slide ([Windows.Media.TranslateTransform]::YProperty) 0 .30
   }
   $script:view=$view
-  $compactHome.Visibility='Collapsed';$prayerHome.Visibility='Collapsed'
+  $compactHome.Visibility='Collapsed';$prayerHome.Visibility='Collapsed';$calendarHome.Visibility='Collapsed'
   if($save){$script:defaultPanel=$view;[IO.File]::WriteAllText($script:defaultPanelPath,$view)}
-  foreach($tab in $prayerTab,$playerTab){$tab.Template=$template;$tab.Foreground=[Windows.Media.Brushes]::White;$tab.Cursor=[Windows.Input.Cursors]::Hand}
+  foreach($tab in $prayerTab,$playerTab,$calendarTab){$tab.Template=$template;$tab.Foreground=[Windows.Media.Brushes]::White;$tab.Cursor=[Windows.Input.Cursors]::Hand}
   $Content.Visibility=if($view -eq 'Player'){'Visible'}else{'Collapsed'}
   $prayerView.Visibility=if($view -eq 'Prayer'){'Visible'}else{'Collapsed'}
+  $calendarView.Visibility=if($view -eq 'Calendar' -and -not $script:notification){'Visible'}else{'Collapsed'}
+  $calendarNotice.Visibility=if($view -eq 'Calendar' -and $script:notification){'Visible'}else{'Collapsed'}
+  if($view -eq 'Calendar'){Update-CalendarView -Force}
   $prayerTab.Foreground=if($view -eq 'Prayer'){$script:systemAccentBrush}else{[Windows.Media.Brushes]::Gray}
   $playerTab.Foreground=if($view -eq 'Player'){$script:systemAccentBrush}else{[Windows.Media.Brushes]::Gray}
+  $calendarTab.Foreground=if($view -eq 'Calendar'){$script:systemAccentBrush}else{[Windows.Media.Brushes]::Gray}
   $window.FindName('PanelHeader').Visibility=if($script:notification){'Collapsed'}else{'Visible'}
   $window.FindName('DefaultToggle').IsChecked=($script:defaultPanel -eq $view)
   $Content.Margin=if($script:notification){[Windows.Thickness]::new(20,14,20,14)}else{[Windows.Thickness]::new(20,44,20,14)}
   # A stationary transparent canvas keeps the center fixed while the card resizes.
-  $bodyWidth=if($view -eq 'Prayer'){330.0}else{371.0}
+  $bodyWidth=if($view -eq 'Prayer'){330.0}elseif($view -eq 'Calendar'){340.0}else{371.0}
   $outerWidth=$bodyWidth+36
-  $height=if($script:notification){160}elseif($view -eq 'Prayer'){260}else{190}
+  $height=if($script:notification -and $view -eq 'Calendar'){100}elseif($script:notification){160}elseif($view -eq 'Prayer'){260}elseif($view -eq 'Calendar'){280}else{190}
   $window.Width=480;$window.Height=280
   $window.Left=([Windows.SystemParameters]::PrimaryScreenWidth-480)/2
   Resize-Island $outerWidth $height
@@ -321,10 +342,12 @@ function Select-Panel($view,[bool]$save){
 }
 $prayerTab.Add_Click({Select-Panel 'Prayer' $false})
 $playerTab.Add_Click({Select-Panel 'Player' $false})
+$calendarTab.Add_Click({Select-Panel 'Calendar' $false})
 $window.FindName('ClosePanel').Add_Click({$script:forceClose=$true;$script:deadline=[datetime]::MinValue})
 $window.FindName('DefaultToggle').Add_Click({
   if($script:notification){return}
-  $chosen=if($window.FindName('DefaultToggle').IsChecked){$script:view}elseif($script:view -eq 'Prayer'){'Player'}else{'Prayer'}
+  if(-not $window.FindName('DefaultToggle').IsChecked){$window.FindName('DefaultToggle').IsChecked=($script:defaultPanel -eq $script:view);return}
+  $chosen=$script:view
   $script:defaultPanel=$chosen;[IO.File]::WriteAllText($script:defaultPanelPath,$chosen)
 })
 $Pill.Add_MouseLeftButtonUp({if(-not $script:expanded){$script:notification=$false;$script:view=$script:defaultPanel;Expand}})
@@ -397,6 +420,7 @@ $navigationTimer.Add_Tick({
   Update-DesktopVisibility
   Update-SystemAccent
   Update-PrayerHome
+  Update-CalendarView
   $down=(([IslandPointer]::GetAsyncKeyState(1) -band 0x8000) -ne 0) -or (([IslandPointer]::GetAsyncKeyState(2) -band 0x8000) -ne 0)
   if($script:expanded -and $down -and -not $script:pointerWasDown){
     $point=New-Object IslandPointer+Point;[void][IslandPointer]::GetCursorPos([ref]$point)
@@ -408,7 +432,7 @@ $navigationTimer.Add_Tick({
   $script:pointerWasDown=$down
   if($script:expanded -and -not $script:closing -and [datetime]::Now -gt $script:deadline){Restore-Home}
   $request=Join-Path $env:LOCALAPPDATA 'Sariyer Widgets\Rainmeter\Skins\SariyerWidgets\@Resources\PanelRequest.txt'
-  if(Test-Path -LiteralPath $request){Remove-Item -LiteralPath $request;$script:notification=$false;$script:view='Prayer';Expand}
+  if(Test-Path -LiteralPath $request){$requested=[IO.File]::ReadAllText($request).Trim();Remove-Item -LiteralPath $request;$script:notification=$false;$script:view=if($requested -in @('Prayer','Player','Calendar')){$requested}else{'Prayer'};Expand}
 })
 $navigationTimer.Start()
 $pauseGeometry=$PlayIcon.Data
@@ -480,6 +504,51 @@ function Send-Control($command){
       $script:commandTask=$asTask.MakeGenericMethod([bool]).Invoke($null,@($operation))
     }
 }
+function Open-MediaSource {
+  if(-not $script:active){return}
+  $source=[string]$script:active.SourceAppUserModelId
+  if(-not [IslandWindowStyle]::OpenSource($source,$Song.Text) -and $source.Contains('!')){
+    Start-Process -FilePath explorer.exe -ArgumentList ('shell:AppsFolder\'+$source) -WindowStyle Hidden
+  }
+}
+$Art.Cursor=[Windows.Input.Cursors]::Hand
+$Art.ToolTip='Open playing app'
+$Art.Add_MouseLeftButtonUp({param($sender,$args) $args.Handled=$true;Open-MediaSource})
+$window.FindName('CompactArt').Cursor=[Windows.Input.Cursors]::Hand
+$window.FindName('CompactArt').Add_MouseLeftButtonUp({param($sender,$args) $args.Handled=$true;Open-MediaSource})
+function Set-SeekPreview([double]$fraction,[bool]$commit){
+  if(-not $script:active){return}
+  try{
+    $timeline=$script:active.GetTimelineProperties()
+    $start=[double]$timeline.StartTime.Ticks;$end=[double]$timeline.EndTime.Ticks
+    if($end -le $start){return}
+    $fraction=[math]::Max(0.0,[math]::Min(1.0,$fraction))
+    $ticks=[long][math]::Round($start+($end-$start)*$fraction)
+    $Progress.Value=$fraction
+    $Elapsed.Text=TimeText (($ticks-$start)/10000000.0)
+    $Remaining.Text='-'+(TimeText (($end-$ticks)/10000000.0))
+    $script:seekUntil=[datetime]::Now.AddMilliseconds(900)
+    if($commit){
+      $info=$script:active.GetPlaybackInfo()
+      if(-not $info.Controls.IsPlaybackPositionEnabled){return}
+      $script:seekTask=$asTask.MakeGenericMethod([bool]).Invoke($null,@($script:active.TryChangePlaybackPositionAsync($ticks)))
+      $script:deadline=[datetime]::Now.AddSeconds(6)
+    }
+  }catch{}
+}
+$seekArea=$window.FindName('SeekArea')
+$seekArea.Add_PreviewMouseLeftButtonDown({param($sender,$args)
+  $args.Handled=$true;$script:seeking=$true;[void]$sender.CaptureMouse()
+  Set-SeekPreview ($args.GetPosition($sender).X/$sender.ActualWidth) $false
+})
+$seekArea.Add_PreviewMouseMove({param($sender,$args)
+  if($script:seeking){Set-SeekPreview ($args.GetPosition($sender).X/$sender.ActualWidth) $false}
+})
+$seekArea.Add_PreviewMouseLeftButtonUp({param($sender,$args)
+  if($script:seeking){$args.Handled=$true;$script:seeking=$false;Set-SeekPreview ($args.GetPosition($sender).X/$sender.ActualWidth) $true;$sender.ReleaseMouseCapture()}
+})
+$seekArea.Add_LostMouseCapture({$script:seeking=$false})
+
 # One routed event per physical press; keyboard activation uses the same handler.
 foreach($button in $Previous,$Pause,$Next){$button.ClickMode='Press'}
 $Previous.Add_Click({Send-Control 'Previous'})
@@ -615,8 +684,10 @@ $timer.Add_Tick({
         }
         $position=[math]::Max(0.0,[math]::Min([double]$duration,[double]$position))
         # Icon state is written only by the visual clock and direct user action.
-        $Elapsed.Text=TimeText $position; $Remaining.Text='-'+(TimeText ($duration-$position))
-        $Progress.Value=if($duration -gt 0){[math]::Max(0.0,[math]::Min(1.0,$position/$duration))}else{0}
+        if(-not $script:seeking -and (-not $script:seekUntil -or [datetime]::Now -gt $script:seekUntil)){
+          $Elapsed.Text=TimeText $position; $Remaining.Text='-'+(TimeText ($duration-$position))
+          $Progress.Value=if($duration -gt 0){[math]::Max(0.0,[math]::Min(1.0,$position/$duration))}else{0}
+        }
       }
       if([datetime]::Now -gt $script:deadline -and -not $script:closing) {
         Restore-Home

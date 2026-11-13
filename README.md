@@ -1,4 +1,4 @@
-# Sarıyer Dynamic Island
+﻿# Sarıyer Dynamic Island
 
 Windows desktop prayer island and music player, built with Rainmeter and a native PowerShell/WPF companion.
 
@@ -9,7 +9,9 @@ Windows desktop prayer island and music player, built with Rainmeter and a nativ
 - Over apps, notifications slide fully in and out through the screen edge.
 - Outside clicks immediately close manual panels; notifications use a short delay, with a fresh countdown on each new track.
 - Moon & Sound navigation icons, Windows accent colors, and controls excluded from Alt+Tab.
-- Choose Prayer or Player as the default home view.
+- Choose Prayer, Player or Calendar as the default home view.
+- Calendar has a compact next-event view, daily agenda with date navigation, and minimal ten-minute reminders. Click an event to open Google Calendar (event URL when available, otherwise its date).
+- Click album artwork to open the playing app/browser. Click or drag the song progress bar to seek when supported.
 - Optional separate Google Calendar widget with a local iCal connection.
 
 ## Requirements
@@ -38,7 +40,7 @@ Calendar integration is optional and disabled until you supply your own iCal fee
 
 ## Sources
 
-`Rainmeter Widgets/` contains the native skin generator, Lua behavior, WPF player and audio meter. `Prayer Wallpaper/` contains the timetable, calendar sync and earlier wallpaper implementation retained as supporting source/history. Desktop wallpaper is not required for the widgets.
+`Rainmeter Widgets/` contains the native data-skin generator, Lua timetable logic, WPF island, calendar views and audio meter. `Start-Music.ps1` deploys both `Music-Island.ps1` and `Calendar-Island.ps1` together. `Prayer Wallpaper/` contains the timetable, calendar sync and earlier wallpaper implementation retained as supporting source/history. Desktop wallpaper is not required for the widgets.
 
 ## Sharing and privacy
 

@@ -89,6 +89,10 @@ function calendarSnapshot(text, now = Date.now()) {
       if (!Number.isFinite(eventStart) || !Number.isFinite(eventEnd)) continue;
       const title = typeof event.summary === "string" ? event.summary.trim().slice(0, 250) : "";
       const item = { title: title || "Untitled event", start: eventStart, end: eventEnd, allDay: event.isFullDay };
+      const eventUrl = event.event?.url ?? entry.url;
+      if (typeof eventUrl === "string") {
+        try { const url = new URL(eventUrl); if (url.protocol === "https:" && url.hostname === "calendar.google.com") item.url = url.href; } catch {}
+      }
       const firstDay = Math.max(0, Math.floor((eventStart - start) / DAY));
       for (let i = firstDay; i < dateLists.length; i++) {
         const dayStart = start + i * DAY;
