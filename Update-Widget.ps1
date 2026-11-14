@@ -1,4 +1,4 @@
-param([switch]$RefreshCalendar)
+﻿param([switch]$RefreshCalendar)
 
 $ErrorActionPreference = 'Stop'
 $skinRoot = Join-Path $env:LOCALAPPDATA 'Sariyer Widgets\Rainmeter\Skins\SariyerWidgets'
@@ -11,7 +11,6 @@ if (-not (Test-Path -LiteralPath (Join-Path $skinRoot '@Resources\Prayer.inc')))
 & node (Join-Path $PSScriptRoot 'Rainmeter Widgets\build.js') $skinRoot
 if ($LASTEXITCODE -ne 0) { throw 'Widget build failed.' }
 Start-Process -FilePath $rainmeterExe -ArgumentList @('!Refresh', '"SariyerWidgets\Prayer"') -WindowStyle Hidden -Wait
-if ($RefreshCalendar) {
-    Start-Process -FilePath $rainmeterExe -ArgumentList @('!Refresh', '"SariyerWidgets\Calendar"') -WindowStyle Hidden -Wait
-}
+# Calendar is rendered only inside the unified island.
+Start-Process -FilePath $rainmeterExe -ArgumentList @('!DeactivateConfig', '"SariyerWidgets\Calendar"') -WindowStyle Hidden -Wait
 Write-Output 'Widget source built and refreshed.'

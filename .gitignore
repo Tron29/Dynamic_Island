@@ -23,3 +23,9 @@ PrayerHome.txt
 # Local analysis, regression harnesses and share archives
 graphify-out/
 Sariyer-Dynamic-Island-share.zip
+
+# Personal preferences and reminder state
+FocusTimer.json
+IslandSettings.json
+PrayerReminderHistory.json
+PrayerReminder.txt

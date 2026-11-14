@@ -104,6 +104,17 @@ function Initialize()
 end
 
 local function realPrayerPeriod(now)
+  -- Night milestones take precedence over the upcoming Fajr before dawn.
+  local today = dayTimes(now)
+  if today and now < today[1] then
+    local yesterday = dayTimes(now - daySeconds)
+    if yesterday then
+      local third = math.ceil((yesterday[5] + (today[1] - yesterday[5]) * 2 / 3) / 60) * 60
+      if now >= third then
+        return {name="Last third", start=third, finish=today[1]}
+      end
+    end
+  end
   local date = dateKey(now)
   if prayerDate ~= date then
     prayerDate = date
@@ -261,6 +272,15 @@ local function prayer(now)
     export:write(dateKey(now), "\n")
     local names = {"Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"}
     if times then for i, instant in ipairs(times) do export:write(names[i], "|", clock(instant), "\n") end end
+    -- Display the night ending at today's Fajr before dawn, otherwise tonight.
+    local nightDay = times and now < times[1] and now - daySeconds or now
+    local evening = dayTimes(nightDay)
+    local morning = dayTimes(nightDay + daySeconds)
+    if evening and morning and morning[1] > evening[5] then
+      local duration = morning[1] - evening[5]
+      export:write("Islamic midnight|", clock(evening[5] + duration / 2), "\n")
+      export:write("Last third begins|", clock(math.ceil((evening[5] + duration * 2 / 3) / 60) * 60), "\n")
+    end
     export:close()
   end
   frame = frame + 1
@@ -285,6 +305,23 @@ local function prayer(now)
     now = period.start + (period.finish - period.start) * (elapsed % seconds) / seconds
   else
     period = realPrayerPeriod(now)
+  end
+  local alerts = io.open(resources .. "PrayerReminder.txt", "w")
+  if alerts then
+    local names = {"Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"}
+    local found = false
+    for offset = 0, 1 do
+      local day = dayTimes(now + offset * daySeconds)
+      if day and not found then
+        for i, instant in ipairs(day) do
+          if i ~= 2 and instant > now then
+            alerts:write("next|", names[i], "|", tostring(instant), "\n"); found = true; break
+          end
+        end
+      end
+    end
+    if period and period.start <= now then alerts:write("end|", period.name, "|", tostring(period.finish), "\n") end
+    alerts:close()
   end
   if SKIN:GetVariable("Headless") == "1" then
     local progress = period and math.max(0, math.min(1, (now - period.start) / (period.finish - period.start))) or 0

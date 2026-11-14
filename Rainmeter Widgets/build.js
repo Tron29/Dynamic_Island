@@ -41,7 +41,7 @@ function shape(name, x, y, width, height, radius, color, extra = {}) {
   });
 }
 
-for (const kind of ["Prayer", "Calendar"]) {
+for (const kind of ["Prayer"]) {
   const folder = path.join(destination, kind);
   fs.mkdirSync(folder, { recursive: true });
   const settings = path.join(resources, kind + ".inc");

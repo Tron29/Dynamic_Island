@@ -1,4 +1,4 @@
-$ErrorActionPreference='Stop'
+﻿$ErrorActionPreference='Stop'
 $rainmeter=Join-Path $env:ProgramFiles 'Rainmeter\Rainmeter.exe'
 if(-not(Test-Path -LiteralPath $rainmeter)){throw 'Install Rainmeter first.'}
 if(-not(Get-Command node -ErrorAction SilentlyContinue)){throw 'Install Node.js first.'}
@@ -34,7 +34,7 @@ $startup=[Environment]::GetFolderPath('Startup')
 $link=$shell.CreateShortcut((Join-Path $startup 'Rainmeter.lnk'));$link.TargetPath=$rainmeter;$link.Save()
 $vbs=Join-Path $helper 'watch-calendar.vbs'
 $node=(Get-Command node).Source
-('CreateObject("WScript.Shell").Run """'+$node+'"" ""'+(Join-Path $helper 'calendar-sync.js')+'""", 0, False') | Set-Content -LiteralPath $vbs -Encoding unicode
+('CreateObject("WScript.Shell").Run """'+$node+'"" ""'+(Join-Path $helper 'calendar-sync.js')+'"" --watch", 0, False') | Set-Content -LiteralPath $vbs -Encoding unicode
 $link=$shell.CreateShortcut((Join-Path $startup 'Sariyer Calendar Sync.lnk'));$link.TargetPath=(Join-Path $env:SystemRoot 'System32\wscript.exe');$link.Arguments='"'+$vbs+'"';$link.Save()
 Start-Process -FilePath $rainmeter -WindowStyle Hidden
 Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\wscript.exe') -ArgumentList ('"'+$vbs+'"') -WindowStyle Hidden

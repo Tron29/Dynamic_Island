@@ -2,7 +2,7 @@
 [xml]$calendarMarkup=@'
 <Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Margin="38,48,38,18" Visibility="Collapsed">
 <Grid.RowDefinitions><RowDefinition Height="45"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-<Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="30"/><ColumnDefinition Width="30"/><ColumnDefinition Width="30"/></Grid.ColumnDefinitions><StackPanel><TextBlock Name="CalendarDay" FontSize="18" Foreground="White"/><TextBlock Name="CalendarDate" FontSize="11" Foreground="#999999"/></StackPanel><Button Name="CalendarPrevious" Grid.Column="1" Content="‹"/><Button Name="CalendarToday" Grid.Column="2" Content="•" ToolTip="Today"/><Button Name="CalendarNext" Grid.Column="3" Content="›"/></Grid>
+<Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="30"/><ColumnDefinition Width="30"/><ColumnDefinition Width="30"/></Grid.ColumnDefinitions><StackPanel><TextBlock Name="CalendarDay" FontSize="18" Foreground="White"/><TextBlock Name="CalendarDate" FontSize="11" Foreground="#999999"/></StackPanel><Button Name="CalendarPrevious" Grid.Column="1" Content="‹"/><Button Name="CalendarToday" Grid.Column="2" Content="•"/><Button Name="CalendarNext" Grid.Column="3" Content="›"/></Grid>
 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Name="CalendarRows"/></ScrollViewer>
 </Grid>
 '@
@@ -21,7 +21,7 @@ $calendarNotice=[Windows.Markup.XamlReader]::Load((New-Object Xml.XmlNodeReader 
 $script:calendarSelected=[datetime]::UtcNow.AddHours(3).Date
 $script:calendarReminded=@{}
 foreach($name in 'CalendarPrevious','CalendarToday','CalendarNext'){
-  $button=$calendarView.FindName($name);$button.Template=$template;$button.Foreground=[Windows.Media.Brushes]::Gray;$button.Cursor=[Windows.Input.Cursors]::Hand;$button.FontSize=20
+  $button=$calendarView.FindName($name);$button.Template=$template;$button.Foreground=$script:uiSecondary;$button.Cursor=[Windows.Input.Cursors]::Hand;$button.FontSize=20
 }
 $calendarView.FindName('CalendarPrevious').Add_Click({$script:calendarSelected=$script:calendarSelected.AddDays(-1);Update-CalendarView -Force})
 $calendarView.FindName('CalendarNext').Add_Click({$script:calendarSelected=$script:calendarSelected.AddDays(1);Update-CalendarView -Force})
@@ -79,20 +79,20 @@ function Update-CalendarView([switch]$Force){
       $button=New-Object Windows.Controls.Button;$button.Template=$template;$button.Tag=$event;$button.Cursor=[Windows.Input.Cursors]::Hand;$button.HorizontalContentAlignment='Stretch';$button.Margin='0,0,0,5';$button.Height=49
       $grid=New-Object Windows.Controls.Grid
       $c1=New-Object Windows.Controls.ColumnDefinition;$c1.Width=[Windows.GridLength]::new(48);[void]$grid.ColumnDefinitions.Add($c1);[void]$grid.ColumnDefinitions.Add((New-Object Windows.Controls.ColumnDefinition))
-      $time=New-Object Windows.Controls.TextBlock;$time.Text=if($event.allDay){'All day'}else{Calendar-Clock $event.start};$time.Foreground=[Windows.Media.Brushes]::Gray;$time.FontSize=11;$time.VerticalAlignment='Center';[void]$grid.Children.Add($time)
+      $time=New-Object Windows.Controls.TextBlock;$time.Text=if($event.allDay){'All day'}else{Calendar-Clock $event.start};$time.Foreground=$script:uiSecondary;$time.FontSize=11;$time.VerticalAlignment='Center';[void]$grid.Children.Add($time)
       $details=New-Object Windows.Controls.StackPanel;$details.VerticalAlignment='Center';[Windows.Controls.Grid]::SetColumn($details,1)
-      $title=New-Object Windows.Controls.TextBlock;$title.Text=$event.title;$title.FontSize=14;$title.Foreground=[Windows.Media.Brushes]::White;$title.TextTrimming='CharacterEllipsis';[void]$details.Children.Add($title)
-      if(-not $event.allDay){$sub=New-Object Windows.Controls.TextBlock;$sub.Text=(Calendar-Clock $event.start)+'–'+(Calendar-Clock $event.end);$sub.FontSize=11;$sub.Foreground=[Windows.Media.Brushes]::Gray;[void]$details.Children.Add($sub)}
+      $title=New-Object Windows.Controls.TextBlock;$title.Text=$event.title;$title.FontSize=14;$title.Foreground=$script:uiPrimary;$title.TextTrimming='CharacterEllipsis';[void]$details.Children.Add($title)
+      if(-not $event.allDay){$sub=New-Object Windows.Controls.TextBlock;$sub.Text=(Calendar-Clock $event.start)+'–'+(Calendar-Clock $event.end);$sub.FontSize=11;$sub.Foreground=$script:uiSecondary;[void]$details.Children.Add($sub)}
       [void]$grid.Children.Add($details);$button.Content=$grid
       $button.Add_Click({param($sender,$eventArgs) Open-IslandCalendarEvent $sender.Tag})
       [void]$rows.Children.Add($button)
     }
-    if($events.Count -eq 0){$empty=New-Object Windows.Controls.TextBlock;$empty.Text=if($script:calendarSnapshot){'No events on this date'}else{'Connect your calendar to see events'};$empty.Foreground=[Windows.Media.Brushes]::Gray;$empty.Margin='0,18,0,0';[void]$rows.Children.Add($empty)}
+    if($events.Count -eq 0){$empty=New-Object Windows.Controls.TextBlock;$empty.Text=if($script:calendarSnapshot){'No events on this date'}else{'Connect your calendar to see events'};$empty.Foreground=$script:uiSecondary;$empty.Margin='0,18,0,0';[void]$rows.Children.Add($empty)}
   }
-  if($next -and $next.start -gt $now -and $minutes -le 10 -and -not $script:expanded){
+  if($script:islandSettings.calendar -and $next -and $next.start -gt $now -and $minutes -le $script:islandSettings.calendarLead -and -not $script:expanded){
     $key=[string]$next.start+'|'+$next.title
     if(-not $script:calendarReminded.ContainsKey($key)){
-      $script:calendarReminded[$key]=$true;$script:notification=$true;$script:view='Calendar';Expand
+      $script:calendarReminded[$key]=$true;$script:notification=$true;$script:view='Calendar';Expand;Play-IslandSound 'Calendar'
     }
   }
 }
